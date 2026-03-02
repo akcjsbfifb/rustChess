@@ -8,7 +8,7 @@ fn main() {
 
     loop {
         board.print();
-        let mut moves = generate_moves(&board);
+        let moves = generate_moves(&board);
 
         if moves.is_empty() {
             println!("No hay movimientos disponibles. Fin del juego.");

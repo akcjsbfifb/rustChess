@@ -1,5 +1,5 @@
-use crate::board::Board;
 use crate::board::types::{Color, Move, PieceType};
+use crate::board::Board;
 use crate::board::*;
 use crate::constants::*;
 
@@ -13,27 +13,13 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
         if board.is_color(index, board.side_to_move) {
             let piece_type = board.get_piece_type(index);
             match piece_type {
-                PieceType::Pawn => {
-                    generate_pawn_moves(board, index, board.side_to_move, &mut moves)
+                PieceType::Pawn => generate_pawn_moves(board, index, board.side_to_move, &mut moves),
+                PieceType::Knight => {
+                    generate_stepper_moves(board, index, &[21, 19, 12, 8, -21, -19, -12, -8], &mut moves)
                 }
-                PieceType::Knight => generate_stepper_moves(
-                    board,
-                    index,
-                    &[21, 19, 12, 8, -21, -19, -12, -8],
-                    &mut moves,
-                ),
-                PieceType::Bishop => {
-                    generate_slider_moves(board, index, &[11, 9, -11, -9], &mut moves)
-                }
-                PieceType::Rook => {
-                    generate_slider_moves(board, index, &[10, -10, 1, -1], &mut moves)
-                }
-                PieceType::Queen => generate_slider_moves(
-                    board,
-                    index,
-                    &[10, -10, 1, -1, 11, 9, -11, -9],
-                    &mut moves,
-                ),
+                PieceType::Bishop => generate_slider_moves(board, index, &[11, 9, -11, -9], &mut moves),
+                PieceType::Rook => generate_slider_moves(board, index, &[10, -10, 1, -1], &mut moves),
+                PieceType::Queen => generate_slider_moves(board, index, &[10, -10, 1, -1, 11, 9, -11, -9], &mut moves),
                 PieceType::King => {
                     let (oo_flag, ooo_flag) = match board.side_to_move {
                         Color::White => (WHITE_OO, WHITE_OOO),
@@ -47,12 +33,7 @@ pub fn generate_moves(board: &Board) -> Vec<Move> {
                         generate_castling_moves(board, index, -2, &mut moves);
                     }
 
-                    generate_stepper_moves(
-                        board,
-                        index,
-                        &[10, -10, 1, -1, 11, 9, -11, -9],
-                        &mut moves,
-                    );
+                    generate_stepper_moves(board, index, &[10, -10, 1, -1, 11, 9, -11, -9], &mut moves);
                 }
                 _ => {}
             }
@@ -64,40 +45,37 @@ fn generate_castling_moves(board: &Board, from: usize, offset: isize, moves: &mu
     let opponent = board.side_to_move.opponent();
 
     if offset == 2 {
-        if board.squares[from + 1] == EMPTY && board.squares[from + 2] == EMPTY {
-            if !is_square_attacked(board, from, opponent)
-                && !is_square_attacked(board, from + 1, opponent)
-                && !is_square_attacked(board, from + 2, opponent)
-            {
-                moves.push(Move::new(
-                    from,
-                    from + 2,
-                    PieceType::King,
-                    PieceType::None,
-                    PieceType::None,
-                    Move::FLAG_CASTLE_KING,
-                ));
-            }
-        }
-    } else if offset == -2 {
-        if board.squares[from - 1] == EMPTY
-            && board.squares[from - 2] == EMPTY
-            && board.squares[from - 3] == EMPTY
+        if board.squares[from + 1] == EMPTY
+            && board.squares[from + 2] == EMPTY
+            && !is_square_attacked(board, from, opponent)
+            && !is_square_attacked(board, from + 1, opponent)
+            && !is_square_attacked(board, from + 2, opponent)
         {
-            if !is_square_attacked(board, from, opponent)
-                && !is_square_attacked(board, from - 1, opponent)
-                && !is_square_attacked(board, from - 2, opponent)
-            {
-                moves.push(Move::new(
-                    from,
-                    from - 2,
-                    PieceType::King,
-                    PieceType::None,
-                    PieceType::None,
-                    Move::FLAG_CASTLE_QUEEN,
-                ));
-            }
+            moves.push(Move::new(
+                from,
+                from + 2,
+                PieceType::King,
+                PieceType::None,
+                PieceType::None,
+                Move::FLAG_CASTLE_KING,
+            ));
         }
+    } else if offset == -2
+        && board.squares[from - 1] == EMPTY
+        && board.squares[from - 2] == EMPTY
+        && board.squares[from - 3] == EMPTY
+        && !is_square_attacked(board, from, opponent)
+        && !is_square_attacked(board, from - 1, opponent)
+        && !is_square_attacked(board, from - 2, opponent)
+    {
+        moves.push(Move::new(
+            from,
+            from - 2,
+            PieceType::King,
+            PieceType::None,
+            PieceType::None,
+            Move::FLAG_CASTLE_QUEEN,
+        ));
     }
 }
 fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<Move>) {
@@ -106,7 +84,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
         Color::White => {
             // Avance hacia arriba (de menor a mayor índice)
             if board.squares[from + 10] == EMPTY {
-                if from >= 81 && from <= 88 {
+                if (81..=88).contains(&from) {
                     // Promoción por avance
                     add_promotion_moves(from, from + 10, PieceType::None, moves);
                 } else {
@@ -120,7 +98,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         Move::FLAG_NONE,
                     ));
                 }
-                if from >= 31 && from <= 38 && board.squares[from + 20] == EMPTY {
+                if (31..=38).contains(&from) && board.squares[from + 20] == EMPTY {
                     // Doble avance
                     moves.push(Move::new(
                         from,
@@ -134,41 +112,27 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             }
             if board.is_color(from + 9, Color::Black) {
                 let captured = board.get_piece_type(from + 9);
-                if from >= 81 && from <= 88 {
+                if (81..=88).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from + 9, captured, moves);
                 } else {
-                    moves.push(Move::new(
-                        from,
-                        from + 9,
-                        PieceType::Pawn,
-                        captured,
-                        PieceType::None,
-                        Move::FLAG_NONE,
-                    ));
+                    moves.push(Move::new(from, from + 9, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
                 }
             }
             if board.is_color(from + 11, Color::Black) {
                 let captured = board.get_piece_type(from + 11);
-                if from >= 81 && from <= 88 {
+                if (81..=88).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from + 11, captured, moves);
                 } else {
-                    moves.push(Move::new(
-                        from,
-                        from + 11,
-                        PieceType::Pawn,
-                        captured,
-                        PieceType::None,
-                        Move::FLAG_NONE,
-                    ));
+                    moves.push(Move::new(from, from + 11, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
                 }
             }
 
             // En passant posible
             // Captura al paso
-            if from >= 61 && from <= 68 {
-                if let Some(index) = board.undo_info.last().unwrap().en_passant_square {
+            if (61..=68).contains(&from)
+                && let Some(index) = board.undo_info.last().unwrap().en_passant_square {
                     if index == from - 1 {
                         moves.push(Move::new(
                             from,
@@ -189,13 +153,12 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         ));
                     }
                 }
-            }
         }
         Color::Black => {
             // Avance hacia abajo (de mayor a menor índice)
             if board.squares[from - 10] == EMPTY {
                 // Avance simple
-                if from >= 31 && from <= 38 {
+                if (31..=38).contains(&from) {
                     // Promoción por avance
                     add_promotion_moves(from, from - 10, PieceType::None, moves);
                 } else {
@@ -208,7 +171,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         Move::FLAG_NONE,
                     ));
                 }
-                if from >= 81 && from <= 88 && board.squares[from - 20] == EMPTY {
+                if (81..=88).contains(&from) && board.squares[from - 20] == EMPTY {
                     // Doble avance
                     moves.push(Move::new(
                         from,
@@ -223,22 +186,25 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             if board.is_color(from - 9, Color::White) {
                 // Captura diagonal derecha
                 let captured = board.get_piece_type(from - 9);
-                if from >= 31 && from <= 38 {
+                if (31..=38).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from - 9, captured, moves);
                 } else {
-                    moves.push(Move::new(
-                        from,
-                        from - 9,
-                        PieceType::Pawn,
-                        captured,
-                        PieceType::None,
-                        Move::FLAG_NONE,
-                    ));
+                    moves.push(Move::new(from, from - 9, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
                 }
             }
-            if from >= 51 && from <= 58 {
-                if let Some(index) = board.undo_info.last().unwrap().en_passant_square {
+            if board.is_color(from - 11, Color::White) {
+                // Captura diagonal izquierda
+                let captured = board.get_piece_type(from - 11);
+                if (31..=38).contains(&from) {
+                    // Promoción con captura
+                    add_promotion_moves(from, from - 11, captured, moves);
+                } else {
+                    moves.push(Move::new(from, from - 11, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
+                }
+            }
+            if (51..=58).contains(&from)
+                && let Some(index) = board.undo_info.last().unwrap().en_passant_square {
                     if index == from + 1 {
                         // En passant posible
                         // Captura al paso
@@ -263,61 +229,15 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         ));
                     }
                 }
-            }
-            if board.is_color(from - 11, Color::White) {
-                // Captura diagonal izquierda
-                let captured = board.get_piece_type(from - 11);
-                if from >= 31 && from <= 38 {
-                    // Promoción con captura
-                    add_promotion_moves(from, from - 11, captured, moves);
-                } else {
-                    moves.push(Move::new(
-                        from,
-                        from - 11,
-                        PieceType::Pawn,
-                        captured,
-                        PieceType::None,
-                        Move::FLAG_NONE,
-                    ));
-                }
-            }
         }
     }
 }
 
 fn add_promotion_moves(from: usize, to: usize, captured: PieceType, moves: &mut Vec<Move>) {
-    moves.push(Move::new(
-        from,
-        to,
-        PieceType::Pawn,
-        captured,
-        PieceType::Queen,
-        Move::FLAG_PROMOTION,
-    ));
-    moves.push(Move::new(
-        from,
-        to,
-        PieceType::Pawn,
-        captured,
-        PieceType::Rook,
-        Move::FLAG_PROMOTION,
-    ));
-    moves.push(Move::new(
-        from,
-        to,
-        PieceType::Pawn,
-        captured,
-        PieceType::Bishop,
-        Move::FLAG_PROMOTION,
-    ));
-    moves.push(Move::new(
-        from,
-        to,
-        PieceType::Pawn,
-        captured,
-        PieceType::Knight,
-        Move::FLAG_PROMOTION,
-    ));
+    moves.push(Move::new(from, to, PieceType::Pawn, captured, PieceType::Queen, Move::FLAG_PROMOTION));
+    moves.push(Move::new(from, to, PieceType::Pawn, captured, PieceType::Rook, Move::FLAG_PROMOTION));
+    moves.push(Move::new(from, to, PieceType::Pawn, captured, PieceType::Bishop, Move::FLAG_PROMOTION));
+    moves.push(Move::new(from, to, PieceType::Pawn, captured, PieceType::Knight, Move::FLAG_PROMOTION));
 }
 fn generate_stepper_moves(board: &Board, from: usize, offsets: &[isize], moves: &mut Vec<Move>) {
     // Caballo, Rey
@@ -329,19 +249,8 @@ fn generate_stepper_moves(board: &Board, from: usize, offsets: &[isize], moves: 
         if board.is_color(to, board.side_to_move) {
             continue;
         }
-        let captured = if board.squares[to] == EMPTY {
-            PieceType::None
-        } else {
-            board.get_piece_type(to)
-        };
-        moves.push(Move::new(
-            from,
-            to,
-            board.get_piece_type(from),
-            captured,
-            PieceType::None,
-            Move::FLAG_NONE,
-        ));
+        let captured = if board.squares[to] == EMPTY { PieceType::None } else { board.get_piece_type(to) };
+        moves.push(Move::new(from, to, board.get_piece_type(from), captured, PieceType::None, Move::FLAG_NONE));
     }
 }
 fn generate_slider_moves(board: &Board, from: usize, offsets: &[isize], moves: &mut Vec<Move>) {
@@ -352,19 +261,8 @@ fn generate_slider_moves(board: &Board, from: usize, offsets: &[isize], moves: &
             if board.is_color(to, board.side_to_move) {
                 break;
             }
-            let captured = if board.squares[to] == EMPTY {
-                PieceType::None
-            } else {
-                board.get_piece_type(to)
-            };
-            moves.push(Move::new(
-                from,
-                to,
-                board.get_piece_type(from),
-                captured,
-                PieceType::None,
-                Move::FLAG_NONE,
-            ));
+            let captured = if board.squares[to] == EMPTY { PieceType::None } else { board.get_piece_type(to) };
+            moves.push(Move::new(from, to, board.get_piece_type(from), captured, PieceType::None, Move::FLAG_NONE));
             if captured != PieceType::None {
                 break;
             }
@@ -375,6 +273,9 @@ fn generate_slider_moves(board: &Board, from: usize, offsets: &[isize], moves: &
 /// Verifica si un cuadro está siendo atacado por un color específico.
 pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool {
     // Se usa para detectar jaques y validar enroques
+    if board.is_color(square, by_color) {
+        return false; // No puede estar atacado por su propio color
+    }
     let knightoffsets = [21, 19, 12, 8, -21, -19, -12, -8];
     let queen_offsets = [10, -10, 1, -1, 11, 9, -11, -9];
     let pawn_offsets = match by_color {
@@ -387,6 +288,12 @@ pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool
             continue;
         }
         if board.is_color(to, by_color) && board.get_piece_type(to) == PieceType::Knight {
+            return true;
+        }
+    }
+    for &offset in &queen_offsets {
+        let to = (square as isize + offset) as usize;
+        if board.is_color(to, by_color) && board.get_piece_type(to) == PieceType::King {
             return true;
         }
     }

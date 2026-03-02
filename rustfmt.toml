@@ -1,0 +1,6 @@
+# Aumenta el ancho máximo de línea (el default es 100)
+max_width = 120
+# Intenta poner más elementos en una sola línea si caben
+use_small_heuristics = "Max"
+# Específicamente para evitar que los match arms se expandan tanto
+match_block_trailing_comma = false

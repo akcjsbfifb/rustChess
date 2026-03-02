@@ -53,6 +53,12 @@ pub struct Board {
     pub can_castle: u8, // blancas rey, blanca dana, negras rey, negras dana
 }
 
+impl Default for Board {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Board {
     pub fn new() -> Self {
         Board {
@@ -91,18 +97,18 @@ impl Board {
     }
 
     pub fn make_move(&mut self, _mv: Move) {
-        self.undo_info.push(UndoInfo {
+        let mut last_move = UndoInfo {
             last_move: _mv,
             can_castle: self.can_castle,
             en_passant_square: None,
             halfmove_clock: 0, // TODO: Update halfmove clock
-        });
+        };
 
         self.squares[_mv.to] = self.squares[_mv.from];
         match _mv.flags {
             Move::FLAG_DOUBLE_PAWN => {
                 // Set en passant square
-                self.undo_info.last_mut().unwrap().en_passant_square = Some(_mv.to);
+                last_move.en_passant_square = Some(_mv.to);
             }
             Move::FLAG_EN_PASSANT => {
                 // Remove captured pawn
@@ -218,6 +224,7 @@ impl Board {
 
         self.squares[_mv.from] = EMPTY;
         self.side_to_move = self.side_to_move.opponent();
+        self.undo_info.push(last_move);
     }
 
     pub fn unmake_move(&mut self) {
@@ -231,7 +238,7 @@ impl Board {
 
         self.can_castle = last_undo.can_castle;
         self.squares[last_move.from] = self.squares[last_move.to]; // Move piece back
-        //
+                                                                   //
         self.squares[last_move.to] =
             if last_move.captured != PieceType::None && last_move.flags != Move::FLAG_EN_PASSANT {
                 // Restore captured piece
