@@ -1,6 +1,6 @@
 // Estos tests prueban la lógica de Board, Move y MoveGen.
 use rustChess::board::types::{Color, Move, PieceType};
-use rustChess::board::Board;
+use rustChess::board::{Board, BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
 use rustChess::constants::*;
 use rustChess::movegen::generate_moves;
 
@@ -153,23 +153,308 @@ fn test_promotion_unmake_logic() {
 }
 
 #[test]
-fn test_rook_capture_removes_castling_rights() {
-    let mut board = Board::new();
-    // Situación: Blanca captura torre negra en h8 (casilla 98)
-    assert_eq!(board.can_castle, 0b1111);
-
-    let m = Move::new(88, 98, PieceType::Pawn, PieceType::Rook, PieceType::None, Move::FLAG_NONE);
-
-    board.make_move(m);
-    // Debería perder el bit BLACK_OO (bit 2, valor 4). 1111 & ~0100 = 1011 (11)
-    assert_eq!(board.can_castle, 0b1011, "Negras deberían perder derecho a enroque corto al perder torre h8");
-
-    board.unmake_move();
-    assert_eq!(board.can_castle, 0b1111, "Derechos de enroque no restaurados");
-}
-
-#[test]
 fn test_first_move_no_panic() {
     let board = Board::new();
     let _moves = generate_moves(&board);
+}
+
+mod castling_tests {
+    use super::*;
+
+    #[test]
+    fn test_white_kingside_castle_move_and_restore() {
+        let mut board = Board::new();
+        assert_eq!(board.can_castle, 0b1111);
+
+        board.squares[F1] = EMPTY;
+        board.squares[G1] = EMPTY;
+
+        let m = Move::new(E1, G1, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_KING);
+        board.make_move(m);
+
+        assert_eq!(board.squares[G1], W_KING);
+        assert_eq!(board.squares[F1], W_ROOK);
+        assert_eq!(board.can_castle & WHITE_OO, 0, "White OO should be removed");
+        assert_eq!(board.can_castle & WHITE_OOO, 0, "White OO should be removed");
+
+        board.unmake_move();
+
+        assert_eq!(board.squares[E1], W_KING);
+        assert_eq!(board.squares[H1], W_ROOK);
+        assert_eq!(board.squares[F1], EMPTY);
+        assert_eq!(board.can_castle, 0b1111, "Castling rights should be restored");
+    }
+
+    #[test]
+    fn test_white_queenside_castle_move_and_restore() {
+        let mut board = Board::new();
+        assert_eq!(board.can_castle, 0b1111);
+
+        board.squares[B1] = EMPTY;
+        board.squares[C1] = EMPTY;
+        board.squares[D1] = EMPTY;
+
+        let m = Move::new(E1, C1, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+        board.make_move(m);
+
+        assert_eq!(board.squares[C1], W_KING);
+        assert_eq!(board.squares[D1], W_ROOK);
+        assert_eq!(board.can_castle & WHITE_OO, 0, "White OOO should be removed");
+        assert_eq!(board.can_castle & WHITE_OOO, 0, "White OOO should be removed");
+
+        board.unmake_move();
+
+        assert_eq!(board.squares[E1], W_KING);
+        assert_eq!(board.squares[A1], W_ROOK);
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_black_kingside_castle_move_and_restore() {
+        let mut board = Board::new();
+        board.side_to_move = Color::Black;
+        assert_eq!(board.can_castle, 0b1111);
+
+        board.squares[F8] = EMPTY;
+        board.squares[G8] = EMPTY;
+
+        let m = Move::new(E8, G8, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_KING);
+        board.make_move(m);
+
+        assert_eq!(board.squares[G8], B_KING);
+        assert_eq!(board.squares[F8], B_ROOK);
+        assert_eq!(board.can_castle & BLACK_OO, 0, "Black OO should be removed");
+        assert_eq!(board.can_castle & BLACK_OOO, 0, "Black OOO should be removed");
+
+        board.unmake_move();
+
+        assert_eq!(board.squares[E8], B_KING);
+        assert_eq!(board.squares[H8], B_ROOK);
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_black_queenside_castle_move_and_restore() {
+        let mut board = Board::new();
+        board.side_to_move = Color::Black;
+        assert_eq!(board.can_castle, 0b1111);
+
+        board.squares[B8] = EMPTY;
+        board.squares[C8] = EMPTY;
+        board.squares[D8] = EMPTY;
+
+        let m = Move::new(E8, C8, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+        board.make_move(m);
+
+        assert_eq!(board.squares[C8], B_KING);
+        assert_eq!(board.squares[D8], B_ROOK);
+        assert_eq!(board.can_castle & BLACK_OO, 0, "Black OO should be removed");
+        assert_eq!(board.can_castle & BLACK_OOO, 0, "Black OOO should be removed");
+
+        board.unmake_move();
+
+        assert_eq!(board.squares[E8], B_KING);
+        assert_eq!(board.squares[A8], B_ROOK);
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_king_move_removes_all_castling_rights_for_color() {
+        let mut board = Board::new();
+
+        let m = Move::new(E1, E2, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.can_castle & WHITE_OO, 0, "White OO should be removed when king moves");
+        assert_eq!(board.can_castle & WHITE_OOO, 0, "White OOO should be removed when king moves");
+        assert_eq!(board.can_castle & (BLACK_OO | BLACK_OOO), BLACK_OO | BLACK_OOO, "Black rights should remain");
+
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_rook_move_from_h1_removes_white_oo() {
+        let mut board = Board::new();
+
+        let m = Move::new(H1, A1, PieceType::Rook, PieceType::None, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.can_castle & WHITE_OO, 0, "White OO should be removed when rook from H1 moves");
+        assert_eq!(board.can_castle & WHITE_OOO, WHITE_OOO, "White OOO should remain");
+
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_rook_move_from_a1_removes_white_ooo() {
+        let mut board = Board::new();
+
+        let m = Move::new(A1, H1, PieceType::Rook, PieceType::None, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.can_castle & WHITE_OOO, 0, "White OOO should be removed when rook from A1 moves");
+        assert_eq!(board.can_castle & WHITE_OO, WHITE_OO, "White OO should remain");
+
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_rook_capture_on_h8_removes_black_oo() {
+        let mut board = Board::new();
+        board.side_to_move = Color::White;
+        assert_eq!(board.can_castle, 0b1111);
+
+        let m = Move::new(E2, H8, PieceType::Pawn, PieceType::Rook, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.can_castle & BLACK_OO, 0, "Black OO should be removed when rook on H8 is captured");
+        assert_eq!(board.can_castle & BLACK_OOO, BLACK_OOO, "Black OOO should remain");
+
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_rook_capture_on_a8_removes_black_ooo() {
+        let mut board = Board::new();
+        board.side_to_move = Color::White;
+        assert_eq!(board.can_castle, 0b1111);
+
+        let m = Move::new(E2, A8, PieceType::Pawn, PieceType::Rook, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.can_castle & BLACK_OOO, 0, "Black OOO should be removed when rook on A8 is captured");
+        assert_eq!(board.can_castle & BLACK_OO, BLACK_OO, "Black OO should remain");
+
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+
+    #[test]
+    fn test_both_rooks_captured_removes_all_black_castling() {
+        let mut board = Board::new();
+        board.side_to_move = Color::White;
+        assert_eq!(board.can_castle, 0b1111);
+
+        let m1 = Move::new(E2, H8, PieceType::Pawn, PieceType::Rook, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m1);
+        assert_eq!(board.can_castle & BLACK_OO, 0, "First rook captured");
+
+        board.side_to_move = Color::White;
+
+        let m2 = Move::new(E3, A8, PieceType::Pawn, PieceType::Rook, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m2);
+
+        assert_eq!(board.can_castle & BLACK_OO, 0);
+        assert_eq!(board.can_castle & BLACK_OOO, 0, "All black castling rights should be removed");
+
+        board.unmake_move();
+        board.unmake_move();
+        assert_eq!(board.can_castle, 0b1111);
+    }
+}
+
+mod king_index_tests {
+    use super::*;
+
+    #[test]
+    fn test_white_king_index_initial() {
+        let board = Board::new();
+        assert_eq!(board.white_king_index, E1);
+        assert_eq!(board.black_king_index, E8);
+    }
+
+    #[test]
+    fn test_white_king_moves_updates_index() {
+        let mut board = Board::new();
+
+        let m = Move::new(E1, E2, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.white_king_index, E2);
+
+        board.unmake_move();
+        assert_eq!(board.white_king_index, E1);
+    }
+
+    #[test]
+    fn test_black_king_moves_updates_index() {
+        let mut board = Board::new();
+        board.side_to_move = Color::Black;
+
+        let m = Move::new(E8, E7, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
+        board.make_move(m);
+
+        assert_eq!(board.black_king_index, E7);
+
+        board.unmake_move();
+        assert_eq!(board.black_king_index, E8);
+    }
+
+    #[test]
+    fn test_white_castle_kingside_updates_king_index() {
+        let mut board = Board::new();
+        board.squares[F1] = EMPTY;
+        board.squares[G1] = EMPTY;
+
+        let m = Move::new(E1, G1, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_KING);
+        board.make_move(m);
+
+        assert_eq!(board.white_king_index, G1);
+
+        board.unmake_move();
+        assert_eq!(board.white_king_index, E1);
+    }
+
+    #[test]
+    fn test_white_castle_queenside_updates_king_index() {
+        let mut board = Board::new();
+        board.squares[B1] = EMPTY;
+        board.squares[C1] = EMPTY;
+        board.squares[D1] = EMPTY;
+
+        let m = Move::new(E1, C1, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+        board.make_move(m);
+
+        assert_eq!(board.white_king_index, C1);
+
+        board.unmake_move();
+        assert_eq!(board.white_king_index, E1);
+    }
+
+    #[test]
+    fn test_black_castle_kingside_updates_king_index() {
+        let mut board = Board::new();
+        board.side_to_move = Color::Black;
+        board.squares[F8] = EMPTY;
+        board.squares[G8] = EMPTY;
+
+        let m = Move::new(E8, G8, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_KING);
+        board.make_move(m);
+
+        assert_eq!(board.black_king_index, G8);
+
+        board.unmake_move();
+        assert_eq!(board.black_king_index, E8);
+    }
+
+    #[test]
+    fn test_black_castle_queenside_updates_king_index() {
+        let mut board = Board::new();
+        board.side_to_move = Color::Black;
+        board.squares[B8] = EMPTY;
+        board.squares[C8] = EMPTY;
+        board.squares[D8] = EMPTY;
+
+        let m = Move::new(E8, C8, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+        board.make_move(m);
+
+        assert_eq!(board.black_king_index, C8);
+
+        board.unmake_move();
+        assert_eq!(board.black_king_index, E8);
+    }
 }

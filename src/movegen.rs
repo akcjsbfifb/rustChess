@@ -84,7 +84,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
         Color::White => {
             // Avance hacia arriba (de menor a mayor índice)
             if board.squares[from + 10] == EMPTY {
-                if (81..=88).contains(&from) {
+                if (A7..=H7).contains(&from) {
                     // Promoción por avance
                     add_promotion_moves(from, from + 10, PieceType::None, moves);
                 } else {
@@ -98,7 +98,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         Move::FLAG_NONE,
                     ));
                 }
-                if (31..=38).contains(&from) && board.squares[from + 20] == EMPTY {
+                if (A2..=H2).contains(&from) && board.squares[from + 20] == EMPTY {
                     // Doble avance
                     moves.push(Move::new(
                         from,
@@ -112,7 +112,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             }
             if board.is_color(from + 9, Color::Black) {
                 let captured = board.get_piece_type(from + 9);
-                if (81..=88).contains(&from) {
+                if (A7..=H7).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from + 9, captured, moves);
                 } else {
@@ -121,7 +121,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             }
             if board.is_color(from + 11, Color::Black) {
                 let captured = board.get_piece_type(from + 11);
-                if (81..=88).contains(&from) {
+                if (A7..=H7).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from + 11, captured, moves);
                 } else {
@@ -131,7 +131,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
 
             // En passant posible
             // Captura al paso
-            if (61..=68).contains(&from)
+            if (A5..=H5).contains(&from)
                 && let Some(index) = board.undo_info.last().unwrap().en_passant_square {
                     if index == from - 1 {
                         moves.push(Move::new(
@@ -158,7 +158,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             // Avance hacia abajo (de mayor a menor índice)
             if board.squares[from - 10] == EMPTY {
                 // Avance simple
-                if (31..=38).contains(&from) {
+                if (A2..=H2).contains(&from) {
                     // Promoción por avance
                     add_promotion_moves(from, from - 10, PieceType::None, moves);
                 } else {
@@ -171,7 +171,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                         Move::FLAG_NONE,
                     ));
                 }
-                if (81..=88).contains(&from) && board.squares[from - 20] == EMPTY {
+                if (A7..=H7).contains(&from) && board.squares[from - 20] == EMPTY {
                     // Doble avance
                     moves.push(Move::new(
                         from,
@@ -186,7 +186,7 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             if board.is_color(from - 9, Color::White) {
                 // Captura diagonal derecha
                 let captured = board.get_piece_type(from - 9);
-                if (31..=38).contains(&from) {
+                if (A2..=H2).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from - 9, captured, moves);
                 } else {
@@ -196,14 +196,14 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
             if board.is_color(from - 11, Color::White) {
                 // Captura diagonal izquierda
                 let captured = board.get_piece_type(from - 11);
-                if (31..=38).contains(&from) {
+                if (A2..=H2).contains(&from) {
                     // Promoción con captura
                     add_promotion_moves(from, from - 11, captured, moves);
                 } else {
                     moves.push(Move::new(from, from - 11, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
                 }
             }
-            if (51..=58).contains(&from)
+            if (A4..=H4).contains(&from)
                 && let Some(index) = board.undo_info.last().unwrap().en_passant_square {
                     if index == from + 1 {
                         // En passant posible
@@ -273,7 +273,7 @@ fn generate_slider_moves(board: &Board, from: usize, offsets: &[isize], moves: &
 /// Verifica si un cuadro está siendo atacado por un color específico.
 pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool {
     // Se usa para detectar jaques y validar enroques
-    if board.is_color(square, by_color) {
+    if board.is_color(square, by_color) || board.squares[square] == OFF_BOARD {
         return false; // No puede estar atacado por su propio color
     }
     let knightoffsets = [21, 19, 12, 8, -21, -19, -12, -8];
@@ -293,6 +293,10 @@ pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool
     }
     for &offset in &queen_offsets {
         let to = (square as isize + offset) as usize;
+
+        if board.squares[to] == OFF_BOARD {
+            continue;
+        }
         if board.is_color(to, by_color) && board.get_piece_type(to) == PieceType::King {
             return true;
         }
@@ -326,4 +330,30 @@ pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool
         }
     }
     false
+}
+
+fn is_in_check(board: &Board) -> bool {
+    let king_square =
+        if board.side_to_move == Color::White { board.white_king_index } else { board.black_king_index };
+    is_square_attacked(board, king_square, board.side_to_move.opponent())
+}
+pub fn perft(board: &mut Board, depth: u32) -> u64 {
+    if depth == 0 {
+        return 1;
+    }
+
+    let moves = generate_moves(board);
+    let mut nodes = 0;
+
+    for mv in moves {
+        board.make_move(mv);
+        if is_in_check(board) {
+            board.unmake_move();
+            continue; // Movimiento ilegal, no contar
+        }
+        nodes += perft(board, depth - 1);
+        board.unmake_move();
+    }
+
+    nodes
 }

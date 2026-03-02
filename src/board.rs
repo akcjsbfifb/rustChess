@@ -51,6 +51,8 @@ pub struct Board {
     pub side_to_move: Color,
     pub undo_info: Vec<UndoInfo>,
     pub can_castle: u8, // blancas rey, blanca dana, negras rey, negras dana
+    pub white_king_index: usize,
+    pub black_king_index: usize,
 }
 
 impl Default for Board {
@@ -66,6 +68,8 @@ impl Board {
             side_to_move: Color::White,
             undo_info: Vec::new(),
             can_castle: 0b1111, // Ambos lados pueden enrocarse
+            white_king_index: E1,
+            black_king_index: E8,
         }
     }
 
@@ -118,86 +122,91 @@ impl Board {
                     self.squares[_mv.to + 10] = EMPTY; // Captura al paso para negras
                 }
             }
-            Move::FLAG_CASTLE_KING | Move::FLAG_CASTLE_QUEEN => {
-                match self.side_to_move {
-                    Color::White => {
-                        if _mv.flags == Move::FLAG_CASTLE_KING {
-                            self.squares[28] = EMPTY;
-                            self.squares[26] = 0x04; // Coloca la torre en f1
-                        } else {
-                            self.squares[21] = EMPTY;
-                            self.squares[24] = 0x04; // Coloca la torre en d1
-                        }
-                    }
-                    Color::Black => {
-                        if _mv.flags == Move::FLAG_CASTLE_KING {
-                            self.squares[98] = EMPTY;
-                            self.squares[96] = 0x84; // Coloca la torre en f8
-                        } else {
-                            self.squares[91] = EMPTY;
-                            self.squares[94] = 0x84; // Coloca la torre en d8
-                        }
+            Move::FLAG_CASTLE_KING | Move::FLAG_CASTLE_QUEEN => match self.side_to_move {
+                Color::White => {
+                    if _mv.flags == Move::FLAG_CASTLE_KING {
+                        self.squares[H1] = EMPTY;
+                        self.squares[F1] = W_ROOK;
+                    } else {
+                        self.squares[A1] = EMPTY;
+                        self.squares[D1] = W_ROOK;
                     }
                 }
-            }
+                Color::Black => {
+                    if _mv.flags == Move::FLAG_CASTLE_KING {
+                        self.squares[H8] = EMPTY;
+                        self.squares[F8] = B_ROOK;
+                    } else {
+                        self.squares[A8] = EMPTY;
+                        self.squares[D8] = B_ROOK;
+                    }
+                }
+            },
             Move::FLAG_PROMOTION => {
                 // Promote pawn to chosen piece
                 self.squares[_mv.to] = match _mv.promotion {
                     PieceType::Queen => {
                         if self.side_to_move == Color::White {
-                            0x05
+                            W_QUEEN
                         } else {
-                            0x85
+                            B_QUEEN
                         }
                     }
                     PieceType::Rook => {
                         if self.side_to_move == Color::White {
-                            0x04
+                            W_ROOK
                         } else {
-                            0x84
+                            B_ROOK
                         }
                     }
                     PieceType::Bishop => {
                         if self.side_to_move == Color::White {
-                            0x03
+                            W_BISHOP
                         } else {
-                            0x83
+                            B_BISHOP
                         }
                     }
                     PieceType::Knight => {
                         if self.side_to_move == Color::White {
-                            0x02
+                            W_KNIGHT
                         } else {
-                            0x82
+                            B_KNIGHT
                         }
                     }
-                    _ => self.squares[_mv.from], // No promotion, keep original piece
+                    _ => self.squares[_mv.from],
                 };
             }
             _ => {}
         }
         if _mv.piece == PieceType::King {
             // Update castling rights if king moves
+            // change king position in kings_index
             match self.side_to_move {
-                Color::White => self.can_castle &= 0b1100, // Quitar derechos de enroque para blancas
-                Color::Black => self.can_castle &= 0b0011, // Quitar derechos de enroque para negras
+                Color::White => {
+                    self.can_castle &= 0b1100;
+                    self.white_king_index = _mv.to;
+                } // Quitar derechos de enroque para blancas
+                Color::Black => {
+                    self.can_castle &= 0b0011;
+                    self.black_king_index = _mv.to;
+                } // Quitar derechos de enroque para negras
             }
         }
         if _mv.piece == PieceType::Rook {
             // Update castling rights if rook moves
             match self.side_to_move {
                 Color::White => {
-                    if _mv.from == 21 {
-                        self.can_castle &= 0b1110; // Quitar derecho de enroque largo para blancas
-                    } else if _mv.from == 28 {
-                        self.can_castle &= 0b1101; // Quitar derecho de enroque corto para blancas
+                    if _mv.from == A1 {
+                        self.can_castle &= 0b1101;
+                    } else if _mv.from == H1 {
+                        self.can_castle &= 0b1110;
                     }
                 }
                 Color::Black => {
-                    if _mv.from == 91 {
-                        self.can_castle &= 0b1011; // Quitar derecho de enroque largo para negras
-                    } else if _mv.from == 98 {
-                        self.can_castle &= 0b0111; // Quitar derecho de enroque corto para negras
+                    if _mv.from == A8 {
+                        self.can_castle &= 0b0111;
+                    } else if _mv.from == H8 {
+                        self.can_castle &= 0b1011;
                     }
                 }
             }
@@ -206,17 +215,17 @@ impl Board {
             // Update castling rights if rook is captured
             match self.side_to_move.opponent() {
                 Color::White => {
-                    if _mv.to == 21 {
-                        self.can_castle &= 0b1101; // Quitar derecho de enroque largo para blancas
-                    } else if _mv.to == 28 {
-                        self.can_castle &= 0b1110; // Quitar derecho de enroque corto para blancas
+                    if _mv.to == A1 {
+                        self.can_castle &= 0b1101;
+                    } else if _mv.to == H1 {
+                        self.can_castle &= 0b1110;
                     }
                 }
                 Color::Black => {
-                    if _mv.to == 91 {
-                        self.can_castle &= 0b1011; // Quitar derecho de enroque largo para negras
-                    } else if _mv.to == 98 {
-                        self.can_castle &= 0b1011; // Quitar derecho de enroque corto para negras
+                    if _mv.to == A8 {
+                        self.can_castle &= 0b0111;
+                    } else if _mv.to == H8 {
+                        self.can_castle &= 0b1011;
                     }
                 }
             }
@@ -240,57 +249,62 @@ impl Board {
 
         if last_move.flags == Move::FLAG_PROMOTION {
             if self.is_color(last_move.to, Color::White) {
-                self.squares[last_move.to] = 0x01;
+                self.squares[last_move.to] = W_PAWN;
             } else {
-                self.squares[last_move.to] = 0x81;
+                self.squares[last_move.to] = B_PAWN;
+            }
+        }
+        if last_move.piece == PieceType::King {
+            match self.side_to_move {
+                Color::White => self.black_king_index = last_move.from,
+                Color::Black => self.white_king_index = last_move.from,
             }
         }
         self.squares[last_move.from] = self.squares[last_move.to]; // Move piece back
                                                                    //
         self.squares[last_move.to] =
             if last_move.captured != PieceType::None && last_move.flags != Move::FLAG_EN_PASSANT {
-                // Restore captured piece
                 match last_move.captured {
                     PieceType::Pawn => {
                         if self.side_to_move == Color::White {
-                            0x01
+                            W_PAWN
                         } else {
-                            0x81
+                            B_PAWN
                         }
                     }
                     PieceType::Knight => {
                         if self.side_to_move == Color::White {
-                            0x02
+                            W_KNIGHT
                         } else {
-                            0x82
+                            B_KNIGHT
                         }
                     }
                     PieceType::Bishop => {
                         if self.side_to_move == Color::White {
-                            0x03
+                            W_BISHOP
                         } else {
-                            0x83
+                            B_BISHOP
                         }
                     }
                     PieceType::Rook => {
                         if self.side_to_move == Color::White {
-                            0x04
+                            W_ROOK
                         } else {
-                            0x84
+                            B_ROOK
                         }
                     }
                     PieceType::Queen => {
                         if self.side_to_move == Color::White {
-                            0x05
+                            W_QUEEN
                         } else {
-                            0x85
+                            B_QUEEN
                         }
                     }
                     PieceType::King => {
                         if self.side_to_move == Color::White {
-                            0x06
+                            W_KING
                         } else {
-                            0x86
+                            B_KING
                         }
                     }
                     _ => EMPTY,
@@ -300,35 +314,34 @@ impl Board {
             };
         match last_move.flags {
             Move::FLAG_EN_PASSANT => {
-                // Restore captured pawn
                 if self.side_to_move == Color::White {
-                    self.squares[last_move.to + 10] = 0x01;
+                    self.squares[last_move.to + 10] = W_PAWN;
                 } else {
-                    self.squares[last_move.to - 10] = 0x81;
+                    self.squares[last_move.to - 10] = B_PAWN;
                 }
             }
-            Move::FLAG_CASTLE_KING | Move::FLAG_CASTLE_QUEEN => {
-                match self.side_to_move {
-                    Color::Black => {
-                        if last_move.flags == Move::FLAG_CASTLE_KING {
-                            self.squares[28] = 0x04; // Restaura torre en h1
-                            self.squares[26] = EMPTY; // Limpia f1
-                        } else {
-                            self.squares[21] = 0x04; // Restaura torre en a1
-                            self.squares[24] = EMPTY; // Limpia d1
-                        }
+            Move::FLAG_CASTLE_KING | Move::FLAG_CASTLE_QUEEN => match self.side_to_move {
+                Color::Black => {
+                    if last_move.flags == Move::FLAG_CASTLE_KING {
+                        self.squares[H1] = W_ROOK;
+                        self.squares[F1] = EMPTY;
+                    } else {
+                        self.squares[A1] = W_ROOK;
+                        self.squares[D1] = EMPTY;
                     }
-                    Color::White => {
-                        if last_move.flags == Move::FLAG_CASTLE_KING {
-                            self.squares[98] = 0x84; // Restaura torre en h8
-                            self.squares[96] = EMPTY; // Limpia f8
-                        } else {
-                            self.squares[91] = 0x84; // Restaura torre en a8
-                            self.squares[94] = EMPTY; // Limpia d8
-                        }
-                    }
+                    self.white_king_index = last_move.from;
                 }
-            }
+                Color::White => {
+                    if last_move.flags == Move::FLAG_CASTLE_KING {
+                        self.squares[H8] = B_ROOK;
+                        self.squares[F8] = EMPTY;
+                    } else {
+                        self.squares[A8] = B_ROOK;
+                        self.squares[D8] = EMPTY;
+                    }
+                    self.black_king_index = last_move.from;
+                }
+            },
             _ => {}
         }
 

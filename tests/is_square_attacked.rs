@@ -26,13 +26,13 @@ mod pawn_attacks {
     #[test]
     fn white_pawn_attacks_diagonal_left() {
         let board = setup_board(&[(55, W_PAWN)]);
-        assert!(is_square_attacked(&board, 64 - 9, Color::White));
+        assert!(is_square_attacked(&board, 55 + 9, Color::White));
     }
 
     #[test]
     fn white_pawn_attacks_diagonal_right() {
         let board = setup_board(&[(55, W_PAWN)]);
-        assert!(is_square_attacked(&board, 64 - 11, Color::White));
+        assert!(is_square_attacked(&board, 55 + 11, Color::White));
     }
 
     #[test]
@@ -44,13 +44,13 @@ mod pawn_attacks {
     #[test]
     fn black_pawn_attacks_diagonal_left() {
         let board = setup_board(&[(65, B_PAWN)]);
-        assert!(is_square_attacked(&board, 65 + 9, Color::Black));
+        assert!(is_square_attacked(&board, 65 - 9, Color::Black));
     }
 
     #[test]
     fn black_pawn_attacks_diagonal_right() {
         let board = setup_board(&[(65, B_PAWN)]);
-        assert!(is_square_attacked(&board, 65 + 11, Color::Black));
+        assert!(is_square_attacked(&board, 65 - 11, Color::Black));
     }
 
     #[test]
@@ -106,9 +106,15 @@ mod bishop_attacks {
     }
 
     #[test]
-    fn bishop_attack_blocked_by_piece() {
-        let board = setup_board(&[(55, W_BISHOP), (55 + 22, W_PAWN)]);
-        assert!(!is_square_attacked(&board, 55 + 33, Color::White));
+    fn bishop_attack_blocked_by_piece_same_color() {
+        let board = setup_board(&[(C3, W_BISHOP), (E5, W_PAWN)]);
+        assert!(!is_square_attacked(&board, G7, Color::White));
+    }
+
+    #[test]
+    fn bishop_attack_blocked_by_piece_dif_color() {
+        let board = setup_board(&[(C3, W_BISHOP), (E5, B_PAWN)]);
+        assert!(!is_square_attacked(&board, G7, Color::White));
     }
 }
 
