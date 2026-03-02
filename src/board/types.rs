@@ -4,6 +4,15 @@ pub enum Color {
     Black,
 }
 
+impl Color {
+    pub fn opponent(&self) -> Self {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PieceType {
     None = 0,
@@ -27,9 +36,11 @@ pub struct Move {
 
 impl Move {
     pub const FLAG_NONE: u8 = 0;
-    pub const FLAG_CASTLE: u8 = 1;
+    pub const FLAG_CASTLE_KING: u8 = 1;
     pub const FLAG_EN_PASSANT: u8 = 2;
     pub const FLAG_DOUBLE_PAWN: u8 = 3;
+    pub const FLAG_PROMOTION: u8 = 4;
+    pub const FLAG_CASTLE_QUEEN: u8 = 5;
 
     pub fn new(
         from: usize,
@@ -47,5 +58,8 @@ impl Move {
             promotion,
             flags,
         }
+    }
+    pub fn is_double_pawn(&self) -> bool {
+        self.flags == Self::FLAG_DOUBLE_PAWN
     }
 }
