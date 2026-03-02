@@ -56,6 +56,60 @@ fn test_white_kingside_castle_consistency() {
 }
 
 #[test]
+fn test_white_queenside_castle_consistency() {
+    let mut board = Board::new();
+    board.squares[22] = EMPTY;
+    board.squares[23] = EMPTY;
+    board.squares[24] = EMPTY;
+    let initial_squares = board.squares.clone();
+
+    let m = Move::new(25, 23, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+
+    board.make_move(m);
+    assert_eq!(board.squares[23], 0x06, "El rey debería estar en c1");
+    assert_eq!(board.squares[24], 0x04, "La torre debería estar en d1");
+
+    board.unmake_move();
+    assert_eq!(board.squares, initial_squares, "El tablero no se restauró correctamente tras enroque");
+}
+
+#[test]
+fn test_black_kingside_castle_consistency() {
+    let mut board = Board::new();
+    board.side_to_move = Color::Black;
+    board.squares[96] = EMPTY;
+    board.squares[97] = EMPTY;
+    let initial_squares = board.squares.clone();
+
+    let m = Move::new(95, 97, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_KING);
+
+    board.make_move(m);
+    assert_eq!(board.squares[97], 0x86, "El rey debería estar en g8");
+    assert_eq!(board.squares[96], 0x84, "La torre debería estar en f8");
+
+    board.unmake_move();
+    assert_eq!(board.squares, initial_squares, "El tablero no se restauró correctamente tras enroque");
+}
+
+#[test]
+fn test_black_queenside_castle_consistency() {
+    let mut board = Board::new();
+    board.side_to_move = Color::Black;
+    board.squares[93] = EMPTY;
+    board.squares[94] = EMPTY;
+    let initial_squares = board.squares.clone();
+
+    let m = Move::new(95, 93, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_CASTLE_QUEEN);
+
+    board.make_move(m);
+    assert_eq!(board.squares[93], 0x86, "El rey debería estar en c8");
+    assert_eq!(board.squares[94], 0x84, "La torre debería estar en d8");
+
+    board.unmake_move();
+    assert_eq!(board.squares, initial_squares, "El tablero no se restauró correctamente tras enroque");
+}
+
+#[test]
 fn test_en_passant_removal() {
     let mut board = Board::new();
     // Preparamos peón blanco en quinta y peón negro al lado que acaba de hacer double move
@@ -83,17 +137,17 @@ fn test_en_passant_removal() {
 fn test_promotion_unmake_logic() {
     let mut board = Board::new();
     // Ponemos peón blanco en 7ma y pieza negra en 8va para capturar y promocionar
-    board.squares[85] = 0x01; // Peón blanco en e7
+    board.squares[84] = 0x01; // Peón blanco en e7
     board.squares[95] = 0x85; // Dama negra en e8
     let initial_squares = board.squares.clone();
 
-    let m = Move::new(85, 95, PieceType::Pawn, PieceType::Queen, PieceType::Queen, Move::FLAG_PROMOTION);
+    let m = Move::new(84, 95, PieceType::Pawn, PieceType::Queen, PieceType::Queen, Move::FLAG_PROMOTION);
 
     board.make_move(m);
     assert_eq!(board.squares[95], 0x05, "Debería haber una Dama Blanca en e8");
 
     board.unmake_move();
-    assert_eq!(board.squares[85], 0x01, "Debería volver a ser un Peón Blanco en e7");
+    assert_eq!(board.squares[84], 0x01, "Debería volver a ser un Peón Blanco en e7");
     assert_eq!(board.squares[95], 0x85, "Debería volver a estar la Dama Negra en e8");
     assert_eq!(board.squares, initial_squares, "El estado total tras deshacer promoción es incorrecto");
 }
@@ -108,7 +162,7 @@ fn test_rook_capture_removes_castling_rights() {
 
     board.make_move(m);
     // Debería perder el bit BLACK_OO (bit 2, valor 4). 1111 & ~0100 = 1011 (11)
-    assert_eq!(board.can_castle & 0b0100, 0, "Negras deberían perder derecho a enroque corto al perder torre h8");
+    assert_eq!(board.can_castle, 0b1011, "Negras deberían perder derecho a enroque corto al perder torre h8");
 
     board.unmake_move();
     assert_eq!(board.can_castle, 0b1111, "Derechos de enroque no restaurados");

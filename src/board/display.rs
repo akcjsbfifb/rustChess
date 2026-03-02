@@ -56,11 +56,7 @@ impl Board {
                     (false, false) => BG_DARK,
                 };
 
-                let fg = if (piece & COLOR_BIT) != 0 {
-                    FG_BLACK
-                } else {
-                    FG_WHITE
-                };
+                let fg = if (piece & COLOR_BIT) != 0 { FG_BLACK } else { FG_WHITE };
 
                 let symbol = piece_to_unicode(piece);
                 print!("{}{} {} ", bg, fg, symbol);

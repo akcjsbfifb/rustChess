@@ -42,22 +42,8 @@ impl Move {
     pub const FLAG_PROMOTION: u8 = 4;
     pub const FLAG_CASTLE_QUEEN: u8 = 5;
 
-    pub fn new(
-        from: usize,
-        to: usize,
-        piece: PieceType,
-        captured: PieceType,
-        promotion: PieceType,
-        flags: u8,
-    ) -> Self {
-        Self {
-            from,
-            to,
-            piece,
-            captured,
-            promotion,
-            flags,
-        }
+    pub fn new(from: usize, to: usize, piece: PieceType, captured: PieceType, promotion: PieceType, flags: u8) -> Self {
+        Self { from, to, piece, captured, promotion, flags }
     }
     pub fn is_double_pawn(&self) -> bool {
         self.flags == Self::FLAG_DOUBLE_PAWN

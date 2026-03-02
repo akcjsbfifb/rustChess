@@ -207,16 +207,16 @@ impl Board {
             match self.side_to_move.opponent() {
                 Color::White => {
                     if _mv.to == 21 {
-                        self.can_castle &= 0b1110; // Quitar derecho de enroque largo para blancas
+                        self.can_castle &= 0b1101; // Quitar derecho de enroque largo para blancas
                     } else if _mv.to == 28 {
-                        self.can_castle &= 0b1101; // Quitar derecho de enroque corto para blancas
+                        self.can_castle &= 0b1110; // Quitar derecho de enroque corto para blancas
                     }
                 }
                 Color::Black => {
                     if _mv.to == 91 {
                         self.can_castle &= 0b1011; // Quitar derecho de enroque largo para negras
                     } else if _mv.to == 98 {
-                        self.can_castle &= 0b0111; // Quitar derecho de enroque corto para negras
+                        self.can_castle &= 0b1011; // Quitar derecho de enroque corto para negras
                     }
                 }
             }
@@ -237,6 +237,14 @@ impl Board {
         let last_move = last_undo.last_move;
 
         self.can_castle = last_undo.can_castle;
+
+        if last_move.flags == Move::FLAG_PROMOTION {
+            if self.is_color(last_move.to, Color::White) {
+                self.squares[last_move.to] = 0x01;
+            } else {
+                self.squares[last_move.to] = 0x81;
+            }
+        }
         self.squares[last_move.from] = self.squares[last_move.to]; // Move piece back
                                                                    //
         self.squares[last_move.to] =
