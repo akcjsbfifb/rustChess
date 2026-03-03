@@ -1,5 +1,5 @@
-use rustChess::board::Board;
-use rustChess::movegen::perft;
+use rust_chess::board::Board;
+use rust_chess::movegen::perft;
 
 #[test]
 fn test_perft_depth_1() {
@@ -28,3 +28,17 @@ fn test_perft_depth_4() {
     let nodes = perft(&mut board, 4);
     assert_eq!(nodes, 197281, "Perft 4 should be 197281");
 }
+
+#[test]
+fn test_perft_depth_5() {
+    let mut board = Board::new();
+    let nodes = perft(&mut board, 5);
+    assert_eq!(nodes, 4865609, "Perft 5 should be 4865609");
+}
+
+// #[test]
+// fn test_perft_depth_6() {
+//     let mut board = Board::new();
+//     let nodes = perft(&mut board, 6);
+//     assert_eq!(nodes, 119060324, "Perft 6 should be 119060324");
+// }

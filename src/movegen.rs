@@ -333,9 +333,8 @@ pub fn is_square_attacked(board: &Board, square: usize, by_color: Color) -> bool
 }
 
 fn is_in_check(board: &Board) -> bool {
-    let king_square =
-        if board.side_to_move == Color::White { board.white_king_index } else { board.black_king_index };
-    is_square_attacked(board, king_square, board.side_to_move.opponent())
+    let king_square = if board.side_to_move == Color::White { board.black_king_index } else { board.white_king_index };
+    is_square_attacked(board, king_square, board.side_to_move)
 }
 pub fn perft(board: &mut Board, depth: u32) -> u64 {
     if depth == 0 {
@@ -356,4 +355,22 @@ pub fn perft(board: &mut Board, depth: u32) -> u64 {
     }
 
     nodes
+}
+
+pub fn perft_divide(board: &mut Board, depth: u32) {
+    let moves = generate_moves(board);
+    let mut total = 0;
+    for mv in &moves {
+        board.make_move(*mv);
+        if is_in_check(board) {
+            println!("{:?} - ILLEGAL (king in check)", mv);
+            board.unmake_move();
+            continue;
+        }
+        let cnt = perft(board, depth - 1);
+        println!("{:?} - {}", mv, cnt);
+        total += cnt;
+        board.unmake_move();
+    }
+    println!("\nTotal: {}", total);
 }

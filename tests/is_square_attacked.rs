@@ -1,4 +1,4 @@
-use rustChess::{
+use rust_chess::{
     board::{
         types::{Color, PieceType},
         Board,

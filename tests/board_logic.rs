@@ -1,8 +1,8 @@
 // Estos tests prueban la lógica de Board, Move y MoveGen.
-use rustChess::board::types::{Color, Move, PieceType};
-use rustChess::board::{Board, BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
-use rustChess::constants::*;
-use rustChess::movegen::generate_moves;
+use rust_chess::board::types::{Color, Move, PieceType};
+use rust_chess::board::{Board, BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
+use rust_chess::constants::*;
+use rust_chess::movegen::generate_moves;
 
 #[test]
 fn test_make_unmake_simple_move() {
@@ -117,7 +117,7 @@ fn test_en_passant_removal() {
     board.squares[66] = 0x81; // Peón negro en f5
 
     // Simulamos que el último movimiento fue el doble avance del negro a f5
-    board.undo_info.push(rustChess::board::UndoInfo {
+    board.undo_info.push(rust_chess::board::UndoInfo {
         last_move: Move::new(86, 66, PieceType::Pawn, PieceType::None, PieceType::None, Move::FLAG_DOUBLE_PAWN),
         can_castle: 0,
         en_passant_square: Some(66),
