@@ -57,19 +57,26 @@ pub struct Board {
 
 impl Default for Board {
     fn default() -> Self {
-        Self::new()
+        Self::new(INITIAL_POSITION, Color::White, Vec::new(), 0b1111, E1, E8)
     }
 }
 
 impl Board {
-    pub fn new() -> Self {
+    pub fn new(
+        squares: [u8; BOARD_SIZE],
+        side_to_move: Color,
+        undo_info: Vec<UndoInfo>,
+        can_castle: u8,
+        white_king_index: usize,
+        black_king_index: usize,
+    ) -> Self {
         Board {
-            squares: INITIAL_POSITION,
-            side_to_move: Color::White,
-            undo_info: Vec::new(),
-            can_castle: 0b1111, // Ambos lados pueden enrocarse
-            white_king_index: E1,
-            black_king_index: E8,
+            squares,
+            side_to_move,
+            undo_info,
+            can_castle, // Ambos lados pueden enrocarse
+            white_king_index,
+            black_king_index,
         }
     }
 
