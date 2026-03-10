@@ -4,11 +4,12 @@ use rust_chess::{
         Board,
     },
     constants::*,
+    fen,
     movegen::is_square_attacked,
 };
 
 fn setup_board(pieces: &[(usize, u8)]) -> Board {
-    let mut board = Board::new();
+    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
     for i in 0..BOARD_SIZE {
         if board.squares[i] != OFF_BOARD {
             board.squares[i] = EMPTY;

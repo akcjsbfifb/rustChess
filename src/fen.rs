@@ -33,12 +33,14 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     ];
     let mut can_castle: u8 = 0b1111;
+    
     let undo_info: Vec<UndoInfo> = Vec::new();
+
     let mut side_to_move = Color::White;
     let mut white_king_index = E1;
     let mut black_king_index = E8;
 
-    // let mut info_for_undo: UndoInfo;
+    let mut info_for_undo: UndoInfo;
 
     let v: Vec<&str> = fen.rsplit(|c| c == '/' || c == ' ').rev().collect();
     let mut global_index = H8;
