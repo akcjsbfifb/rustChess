@@ -268,7 +268,7 @@ impl Board {
             }
         }
         self.squares[last_move.from] = self.squares[last_move.to]; // Move piece back
-                                                                   //
+        //
         self.squares[last_move.to] =
             if last_move.captured != PieceType::None && last_move.flags != Move::FLAG_EN_PASSANT {
                 match last_move.captured {

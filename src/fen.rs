@@ -1,10 +1,10 @@
-use crate::board::types::*;
-use crate::board::Board;
-use crate::board::UndoInfo;
 use crate::board::BLACK_OO;
 use crate::board::BLACK_OOO;
+use crate::board::Board;
+use crate::board::UndoInfo;
 use crate::board::WHITE_OO;
 use crate::board::WHITE_OOO;
+use crate::board::types::*;
 use crate::constants::*;
 /// Parsea un string FEN y devuelve un Board.
 ///
@@ -33,13 +33,14 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     ];
     let mut can_castle: u8 = 0b1111;
-    
-    let undo_info: Vec<UndoInfo> = Vec::new();
+
+    let mut undo_info: Vec<UndoInfo> = Vec::new();
 
     let mut side_to_move = Color::White;
     let mut white_king_index = E1;
     let mut black_king_index = E8;
 
+    let mut en_passant_index: usize = 21;
     let mut info_for_undo: UndoInfo;
 
     let v: Vec<&str> = fen.rsplit(|c| c == '/' || c == ' ').rev().collect();
@@ -97,12 +98,34 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
                     }
                     println!("can_castle:: {}", can_castle);
                 }
+            } else if i == 10 {
+                if c != '-' {
+                    if c.is_digit(10) {
+                        en_passant_index += c.to_digit(10).unwrap() as usize * 10;
+                        en_passant_index -= 10;
+                    } else {
+                        en_passant_index += c.to_ascii_uppercase() as usize - 65;
+                    }
+                }
             }
         }
         if global_index >= 21 {
             global_index -= 10;
         }
     }
+
+    if side_to_move == Color::White {
+        en_passant_index -= 10;
+    } else {
+        en_passant_index += 10;
+    }
+    println!("en_passant_index:: {}", en_passant_index);
+    undo_info.push(UndoInfo {
+        last_move: Move::new(0, 0, PieceType::None, PieceType::None, PieceType::None, 0),
+        can_castle,
+        en_passant_square: if en_passant_index >= 21 && en_passant_index <= 98 { Some(en_passant_index) } else { None },
+        halfmove_clock: 0,
+    });
     let result = Board::new(board, side_to_move, undo_info, can_castle, white_king_index, black_king_index);
     Ok(result)
 }

@@ -1,11 +1,11 @@
-use rust_chess::board::types::Color;
 use rust_chess::board::Board;
+use rust_chess::board::types::Color;
 use rust_chess::fen;
 use rust_chess::movegen::generate_moves;
 use std::io::{self, Write};
 
 fn main() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2").unwrap();
+    let mut board = fen::fen_to_board("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2").unwrap();
 
     // loop {
     //     board.print();
