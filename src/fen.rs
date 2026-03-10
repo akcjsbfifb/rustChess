@@ -40,18 +40,15 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
     let mut white_king_index = E1;
     let mut black_king_index = E8;
 
-    let mut en_passant_index: usize = 21;
-    let mut info_for_undo: UndoInfo;
+    let mut en_passant_index: usize = 0;
 
-    let v: Vec<&str> = fen.rsplit(|c| c == '/' || c == ' ').rev().collect();
+    let v: Vec<&str> = fen.rsplit(['/', ' ']).rev().collect();
     let mut global_index = H8;
     for (i, s) in v.iter().enumerate() {
-        println!("{}: {}", i, s);
-
         let mut row_index = global_index - 7;
         for c in s.chars() {
             if i < 8 {
-                if c.is_digit(10) {
+                if c.is_ascii_digit() {
                     row_index += c.to_digit(10).unwrap() as usize;
                 } else {
                     match c {
@@ -75,8 +72,6 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
                         }
                         _ => return Err(format!("Carácter inválido en FEN: '{}'", c)),
                     }
-
-                    println!("row_index char:: {}\n", row_index);
                     row_index += 1;
                 }
             } else if i == 8 {
@@ -96,16 +91,14 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
                         'q' => can_castle |= BLACK_OOO,
                         _ => return Err(format!("Carácter inválido en FEN: '{}'", c)),
                     }
-                    println!("can_castle:: {}", can_castle);
                 }
-            } else if i == 10 {
-                if c != '-' {
-                    if c.is_digit(10) {
-                        en_passant_index += c.to_digit(10).unwrap() as usize * 10;
-                        en_passant_index -= 10;
-                    } else {
-                        en_passant_index += c.to_ascii_uppercase() as usize - 65;
-                    }
+            } else if i == 10 && c != '-' {
+                if c.is_ascii_digit() {
+                    en_passant_index += c.to_digit(10).unwrap() as usize * 10;
+                    en_passant_index -= 10;
+                } else {
+                    en_passant_index += 21;
+                    en_passant_index += c.to_ascii_uppercase() as usize - 65;
                 }
             }
         }
@@ -114,29 +107,114 @@ pub fn fen_to_board(fen: &str) -> Result<Board, String> {
         }
     }
 
-    if side_to_move == Color::White {
-        en_passant_index -= 10;
-    } else {
-        en_passant_index += 10;
+    if (21..=98).contains(&en_passant_index) {
+        if side_to_move == Color::White {
+            en_passant_index -= 10;
+        } else {
+            en_passant_index += 10;
+        }
     }
-    println!("en_passant_index:: {}", en_passant_index);
     undo_info.push(UndoInfo {
         last_move: Move::new(0, 0, PieceType::None, PieceType::None, PieceType::None, 0),
         can_castle,
-        en_passant_square: if en_passant_index >= 21 && en_passant_index <= 98 { Some(en_passant_index) } else { None },
+        en_passant_square: if (21..=98).contains(&en_passant_index) { Some(en_passant_index) } else { None },
         halfmove_clock: 0,
     });
     let result = Board::new(board, side_to_move, undo_info, can_castle, white_king_index, black_king_index);
     Ok(result)
 }
 
-/// Convierte un Board a string FEN.
-///
-/// # Arguments
-/// * `board` - Referencia al Board
-///
-/// # Returns
-/// * String en formato FEN
 pub fn board_to_fen(board: &Board) -> String {
-    todo!()
+    let mut fen = String::new();
+
+    // 1. Piece placement
+    for rank in (0..8).rev() {
+        let mut empty_count = 0;
+        for file in 0..8 {
+            let sq = 21 + rank * 10 + file;
+            let piece = board.squares[sq];
+
+            if piece == 0 {
+                empty_count += 1;
+            } else {
+                if empty_count > 0 {
+                    fen.push_str(&empty_count.to_string());
+                    empty_count = 0;
+                }
+                let c = match piece {
+                    W_PAWN => 'P',
+                    W_KNIGHT => 'N',
+                    W_BISHOP => 'B',
+                    W_ROOK => 'R',
+                    W_QUEEN => 'Q',
+                    W_KING => 'K',
+                    B_PAWN => 'p',
+                    B_KNIGHT => 'n',
+                    B_BISHOP => 'b',
+                    B_ROOK => 'r',
+                    B_QUEEN => 'q',
+                    B_KING => 'k',
+                    _ => '?',
+                };
+                fen.push(c);
+            }
+        }
+        if empty_count > 0 {
+            fen.push_str(&empty_count.to_string());
+        }
+        if rank > 0 {
+            fen.push('/');
+        }
+    }
+
+    // 2. Side to move
+    fen.push(' ');
+    fen.push(match board.side_to_move {
+        Color::White => 'w',
+        Color::Black => 'b',
+    });
+
+    // 3. Castling rights
+    fen.push(' ');
+    let mut castling = String::new();
+    if board.can_castle & WHITE_OO != 0 {
+        castling.push('K');
+    }
+    if board.can_castle & WHITE_OOO != 0 {
+        castling.push('Q');
+    }
+    if board.can_castle & BLACK_OO != 0 {
+        castling.push('k');
+    }
+    if board.can_castle & BLACK_OOO != 0 {
+        castling.push('q');
+    }
+    if castling.is_empty() {
+        castling.push('-');
+    }
+    fen.push_str(&castling);
+
+    // 4. En passant square
+    fen.push(' ');
+    if let Some(sq) = board.undo_info.last().and_then(|u| u.en_passant_square) {
+        let file = (sq % 10) - 1;
+        let rank = (sq / 10) - 2;
+        let file_char = (b'a' + file as u8) as char;
+        let rank_char = (b'1' + rank as u8) as char;
+        fen.push(file_char);
+        fen.push(rank_char);
+    } else {
+        fen.push('-');
+    }
+
+    // 5. Halfmove clock
+    fen.push(' ');
+    let halfmove = board.undo_info.last().map(|u| u.halfmove_clock).unwrap_or(0);
+    fen.push_str(&halfmove.to_string());
+
+    // 6. Fullmove number (default to 1 since Board doesn't store it)
+    fen.push(' ');
+    fen.push('1');
+
+    fen
 }
