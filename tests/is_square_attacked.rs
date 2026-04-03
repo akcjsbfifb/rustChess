@@ -1,7 +1,7 @@
 use rust_chess::{
     board::{
-        types::{Color, PieceType},
         Board,
+        types::{Color, PieceType},
     },
     constants::*,
     fen,

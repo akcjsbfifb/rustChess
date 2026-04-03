@@ -39,6 +39,7 @@ pub const WHITE_OOO: u8 = 0b0010; // Largo blancas
 pub const BLACK_OO: u8 = 0b0100; // Corto negras
 pub const BLACK_OOO: u8 = 0b1000; // Largo negras
 
+#[derive(Clone)]
 pub struct UndoInfo {
     pub last_move: Move,
     pub can_castle: u8,

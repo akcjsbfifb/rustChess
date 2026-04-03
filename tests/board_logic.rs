@@ -1,9 +1,9 @@
 // Estos tests prueban la lógica de Board, Move y MoveGen.
 use rust_chess::board::types::{Color, Move, PieceType};
-use rust_chess::board::{Board, BLACK_OO, BLACK_OOO, WHITE_OO, WHITE_OOO};
+use rust_chess::board::{BLACK_OO, BLACK_OOO, Board, WHITE_OO, WHITE_OOO};
 use rust_chess::constants::*;
-use rust_chess::movegen::generate_moves;
 use rust_chess::fen;
+use rust_chess::movegen::generate_moves;
 
 #[test]
 fn test_make_unmake_simple_move() {
@@ -164,7 +164,7 @@ mod castling_tests {
 
     #[test]
     fn test_white_kingside_castle_move_and_restore() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         assert_eq!(board.can_castle, 0b1111);
 
         board.squares[F1] = EMPTY;
@@ -188,7 +188,7 @@ mod castling_tests {
 
     #[test]
     fn test_white_queenside_castle_move_and_restore() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         assert_eq!(board.can_castle, 0b1111);
 
         board.squares[B1] = EMPTY;
@@ -212,7 +212,7 @@ mod castling_tests {
 
     #[test]
     fn test_black_kingside_castle_move_and_restore() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::Black;
         assert_eq!(board.can_castle, 0b1111);
 
@@ -236,7 +236,7 @@ mod castling_tests {
 
     #[test]
     fn test_black_queenside_castle_move_and_restore() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::Black;
         assert_eq!(board.can_castle, 0b1111);
 
@@ -261,7 +261,7 @@ mod castling_tests {
 
     #[test]
     fn test_king_move_removes_all_castling_rights_for_color() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
 
         let m = Move::new(E1, E2, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
         board.make_move(m);
@@ -276,7 +276,7 @@ mod castling_tests {
 
     #[test]
     fn test_rook_move_from_h1_removes_white_oo() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
 
         let m = Move::new(H1, A1, PieceType::Rook, PieceType::None, PieceType::None, Move::FLAG_NONE);
         board.make_move(m);
@@ -290,7 +290,7 @@ mod castling_tests {
 
     #[test]
     fn test_rook_move_from_a1_removes_white_ooo() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
 
         let m = Move::new(A1, H1, PieceType::Rook, PieceType::None, PieceType::None, Move::FLAG_NONE);
         board.make_move(m);
@@ -304,7 +304,7 @@ mod castling_tests {
 
     #[test]
     fn test_rook_capture_on_h8_removes_black_oo() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::White;
         assert_eq!(board.can_castle, 0b1111);
 
@@ -320,7 +320,7 @@ mod castling_tests {
 
     #[test]
     fn test_rook_capture_on_a8_removes_black_ooo() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::White;
         assert_eq!(board.can_castle, 0b1111);
 
@@ -336,7 +336,7 @@ mod castling_tests {
 
     #[test]
     fn test_both_rooks_captured_removes_all_black_castling() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::White;
         assert_eq!(board.can_castle, 0b1111);
 
@@ -363,14 +363,14 @@ mod king_index_tests {
 
     #[test]
     fn test_white_king_index_initial() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         assert_eq!(board.white_king_index, E1);
         assert_eq!(board.black_king_index, E8);
     }
 
     #[test]
     fn test_white_king_moves_updates_index() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
 
         let m = Move::new(E1, E2, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
         board.make_move(m);
@@ -383,7 +383,7 @@ mod king_index_tests {
 
     #[test]
     fn test_black_king_moves_updates_index() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::Black;
 
         let m = Move::new(E8, E7, PieceType::King, PieceType::None, PieceType::None, Move::FLAG_NONE);
@@ -397,7 +397,7 @@ mod king_index_tests {
 
     #[test]
     fn test_white_castle_kingside_updates_king_index() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.squares[F1] = EMPTY;
         board.squares[G1] = EMPTY;
 
@@ -412,7 +412,7 @@ mod king_index_tests {
 
     #[test]
     fn test_white_castle_queenside_updates_king_index() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.squares[B1] = EMPTY;
         board.squares[C1] = EMPTY;
         board.squares[D1] = EMPTY;
@@ -428,7 +428,7 @@ mod king_index_tests {
 
     #[test]
     fn test_black_castle_kingside_updates_king_index() {
-    let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let mut board = fen::fen_to_board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         board.side_to_move = Color::Black;
         board.squares[F8] = EMPTY;
         board.squares[G8] = EMPTY;

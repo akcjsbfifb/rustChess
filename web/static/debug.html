@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rust Chess Engine - Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 35px);
+            gap: 1px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .board-cell {
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #2a2a2a;
+            border: 1px solid #3d3d3d;
+        }
+        .board-cell.header {
+            background: #404040;
+            font-weight: bold;
+            color: #fff;
+        }
+        .board-cell.offboard {
+            background: #f44336;
+        }
+        .board-cell.empty {
+            background: #1a1a1a;
+            color: #666;
+        }
+        .board-cell.piece {
+            background: #81b64c;
+            color: #000;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-[#302e2b] text-[#bababa] min-h-screen">
+    <div class="max-w-[1200px] mx-auto p-5">
+        <header class="flex justify-between items-center pb-5 mb-5 border-b border-[#3d3d3d]">
+            <h1 class="text-white text-2xl">Rust Chess Engine - Debug</h1>
+            <nav>
+                <a href="/" class="text-[#bababa] px-4 py-2 rounded hover:bg-[#3d3d3d] hover:text-white">Jugar</a>
+                <a href="/debug.html" class="text-[#bababa] px-4 py-2 rounded hover:bg-[#3d3d3d] hover:text-white bg-[#81b64c] text-white">Debug</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-[#262522] rounded-lg p-4">
+                    <h3 class="text-white text-base mb-3 pb-2 border-b border-[#3d3d3d]">Estado del Engine</h3>
+                    <div class="space-y-2 font-mono text-xs">
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">FEN:</label>
+                            <div id="debug-fen" class="text-white break-all">-</div>
+                        </div>
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">Turno:</label>
+                            <div id="debug-turn" class="text-white">-</div>
+                        </div>
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">Derechos de enroque (binario):</label>
+                            <div id="debug-castling" class="text-white">-</div>
+                        </div>
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">En passant:</label>
+                            <div id="debug-enpassant" class="text-white">-</div>
+                        </div>
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">Posición rey blanco (índice 10x12):</label>
+                            <div id="debug-wking" class="text-white">-</div>
+                        </div>
+                        <div class="bg-[#1a1a1a] rounded p-3">
+                            <label class="block text-[#888] text-[11px] mb-1">Posición rey negro (índice 10x12):</label>
+                            <div id="debug-bking" class="text-white">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-[#262522] rounded-lg p-4">
+                    <h3 class="text-white text-base mb-3 pb-2 border-b border-[#3d3d3d]">Perft Test</h3>
+                    <div class="flex gap-3 items-center mb-3">
+                        <label class="text-sm">Profundidad:</label>
+                        <input type="number" id="perft-depth" value="4" min="1" max="8" class="w-20 bg-[#1a1a1a] border border-[#3d3d3d] rounded px-2 py-2 text-white font-mono">
+                        <button id="btn-run-perft" class="bg-[#81b64c] text-white px-4 py-2 rounded hover:bg-[#6a9c3a] text-sm">Ejecutar</button>
+                    </div>
+                    <div id="perft-results" class="bg-[#1a1a1a] rounded p-3 font-mono text-xs min-h-[100px]">
+                        <pre>Click "Ejecutar" para correr perft</pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-[#262522] rounded-lg p-4 mt-4">
+                <h3 class="text-white text-base mb-3 pb-2 border-b border-[#3d3d3d]">Representación del Tablero (10x12)</h3>
+                <div id="board-rep" class="inline-block"></div>
+            </div>
+
+            <div class="bg-[#262522] rounded-lg p-4 mt-4">
+                <h3 class="text-white text-base mb-3 pb-2 border-b border-[#3d3d3d]">Movimientos Legales Detallados</h3>
+                <div id="moves-detail" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[300px] overflow-y-auto bg-[#1a1a1a] rounded p-3"></div>
+            </div>
+
+            <div class="bg-[#262522] rounded-lg p-4 mt-4">
+                <h3 class="text-white text-base mb-3 pb-2 border-b border-[#3d3d3d]">Log de Comunicación</h3>
+                <button id="btn-clear-log" class="bg-[#4d4d4d] text-white px-3 py-2 rounded hover:bg-[#5d5d5d] text-xs mb-3">Limpiar Log</button>
+                <div id="log-container" class="bg-[#1a1a1a] rounded p-3 font-mono text-[11px] max-h-[400px] overflow-y-auto"></div>
+            </div>
+        </main>
+
+        <footer class="mt-8 pt-5 border-t border-[#3d3d3d] text-center">
+            <div id="connection-status" class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-[#f44336] text-white">Desconectado</div>
+        </footer>
+    </div>
+
+    <script src="js/websocket.js"></script>
+    <script src="js/debug.js"></script>
+</body>
+</html>
