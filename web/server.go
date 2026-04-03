@@ -49,7 +49,7 @@ type EngineProcess struct {
 func NewEngineProcess() (*EngineProcess, error) {
 	// Buscar el binario del engine
 	enginePath := "./target/release/rust_chess"
-	
+
 	// Intentar rutas alternativas si no existe
 	if _, err := os.Stat(enginePath); os.IsNotExist(err) {
 		// Intentar desde el directorio padre
@@ -60,17 +60,17 @@ func NewEngineProcess() (*EngineProcess, error) {
 	}
 
 	cmd := exec.Command(enginePath)
-	
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stdin pipe: %v", err)
 	}
-	
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stdout pipe: %v", err)
 	}
-	
+
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get stderr pipe: %v", err)
@@ -100,6 +100,9 @@ func (e *EngineProcess) SendCommand(command string) (string, error) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
+	// Log comando enviado
+	log.Printf("[STDIN → Engine] %s", command)
+
 	// Enviar comando
 	if _, err := e.stdin.WriteString(command + "\n"); err != nil {
 		return "", fmt.Errorf("failed to write command: %v", err)
@@ -114,7 +117,16 @@ func (e *EngineProcess) SendCommand(command string) (string, error) {
 		return "", fmt.Errorf("failed to read response: %v", err)
 	}
 
-	return strings.TrimSpace(line), nil
+	line = strings.TrimSpace(line)
+
+	// Log respuesta recibida
+	if len(line) > 100 {
+		log.Printf("[STDOUT ← Engine] %s... (truncado)", line[:100])
+	} else {
+		log.Printf("[STDOUT ← Engine] %s", line)
+	}
+
+	return line, nil
 }
 
 // Stop termina el proceso del engine
@@ -153,7 +165,7 @@ func main() {
 		log.Fatal(err)
 	}
 	staticDir := filepath.Join(filepath.Dir(ex), "static")
-	
+
 	// Si estamos en desarrollo, usar ruta relativa
 	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
 		staticDir = "./static"
@@ -168,7 +180,7 @@ func main() {
 
 	log.Println("Server starting on http://localhost:8080")
 	log.Println("Open http://localhost:8080 in your browser")
-	
+
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal("Server error:", err)
 	}
@@ -239,17 +251,17 @@ func (c *Client) handleMessage(msg Message) error {
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 			return err
 		}
-		
+
 		cmd := "position startpos"
 		if payload.FEN != "" {
 			cmd = fmt.Sprintf("position fen %s", payload.FEN)
 		}
-		
+
 		response, err := c.engine.SendCommand(cmd)
 		if err != nil {
 			return err
 		}
-		
+
 		return c.sendBoardState(response)
 
 	case "get_moves":
@@ -257,7 +269,7 @@ func (c *Client) handleMessage(msg Message) error {
 		if err != nil {
 			return err
 		}
-		
+
 		c.conn.WriteJSON(Response{
 			Type:    "legal_moves",
 			Payload: json.RawMessage(response),
@@ -271,13 +283,13 @@ func (c *Client) handleMessage(msg Message) error {
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 			return err
 		}
-		
+
 		cmd := fmt.Sprintf("move %s", payload.Move)
 		response, err := c.engine.SendCommand(cmd)
 		if err != nil {
 			return err
 		}
-		
+
 		return c.sendBoardState(response)
 
 	case "undo":
@@ -285,7 +297,7 @@ func (c *Client) handleMessage(msg Message) error {
 		if err != nil {
 			return err
 		}
-		
+
 		return c.sendBoardState(response)
 
 	case "engine_go":
@@ -293,12 +305,12 @@ func (c *Client) handleMessage(msg Message) error {
 		if err != nil {
 			return err
 		}
-		
+
 		c.conn.WriteJSON(Response{
 			Type:    "best_move",
 			Payload: json.RawMessage(response),
 		})
-		
+
 		// Actualizar estado después de que el engine juegue
 		var result map[string]interface{}
 		if err := json.Unmarshal([]byte(response), &result); err == nil {
@@ -320,13 +332,13 @@ func (c *Client) handleMessage(msg Message) error {
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
 			return err
 		}
-		
+
 		cmd := fmt.Sprintf("perft %d", payload.Depth)
 		response, err := c.engine.SendCommand(cmd)
 		if err != nil {
 			return err
 		}
-		
+
 		c.conn.WriteJSON(Response{
 			Type:    "perft_result",
 			Payload: json.RawMessage(response),
@@ -338,7 +350,7 @@ func (c *Client) handleMessage(msg Message) error {
 		if err != nil {
 			return err
 		}
-		
+
 		c.conn.WriteJSON(Response{
 			Type:    "board_state",
 			Payload: json.RawMessage(response),
@@ -356,12 +368,12 @@ func (c *Client) sendBoardState(cmdResponse string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	c.conn.WriteJSON(Response{
 		Type:    "command_response",
 		Payload: json.RawMessage(cmdResponse),
 	})
-	
+
 	c.conn.WriteJSON(Response{
 		Type:    "board_state",
 		Payload: json.RawMessage(state),

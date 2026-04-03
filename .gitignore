@@ -1,3 +1,4 @@
 /target
 /learning_materials/
 *.md
+.obsidian/
