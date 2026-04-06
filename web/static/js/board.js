@@ -8,13 +8,16 @@ class ChessBoard {
         this.legalMoves = [];
         
         this.pieceSymbols = {
-            'king': '♔',
-            'queen': '♕',
-            'rook': '♖',
-            'bishop': '♗',
-            'knight': '♘',
-            'pawn': '♙'
+            'king': 'k',
+            'queen': 'q',
+            'rook': 'r',
+            'bishop': 'b',
+            'knight': 'n',
+            'pawn': 'p'
         };
+        
+        this.pieceImages = {};
+        this.boardImage = '/images/boards/green.png';
         
         this.init();
     }
@@ -231,9 +234,18 @@ class ChessBoard {
                 if (piece) {
                     const square = this.getSquareByIndex(index);
                     if (square) {
-                        const pieceEl = document.createElement('span');
+                        const pieceCode = this.pieceSymbols[piece.piece];
+                        const colorCode = piece.color === 'white' ? 'w' : 'b';
+                        const imgPath = `/images/pieces/${colorCode}${pieceCode}.png?v=2`;
+                        
+                        const pieceEl = document.createElement('img');
                         pieceEl.className = `piece ${piece.color}`;
-                        pieceEl.textContent = this.pieceSymbols[piece.piece];
+                        pieceEl.src = imgPath;
+                        pieceEl.alt = `${piece.color} ${piece.piece}`;
+                        pieceEl.draggable = false;
+                        pieceEl.onerror = function() {
+                            console.error('Failed to load piece image:', imgPath);
+                        };
                         square.appendChild(pieceEl);
                     }
                 }
