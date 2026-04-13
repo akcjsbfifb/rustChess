@@ -392,6 +392,42 @@ func (c *Client) handleMessage(msg Message) error {
 		})
 		return nil
 
+	case "get_commits":
+		// Obtener últimos 20 commits
+		commits, err := getGitCommits(20)
+		if err != nil {
+			return err
+		}
+
+		c.conn.WriteJSON(Response{
+			Type:    "commits_list",
+			Payload: commits,
+		})
+		return nil
+
+	case "run_benchmark":
+		var payload struct {
+			CommitA string `json:"commit_a"`
+			CommitB string `json:"commit_b"`
+			Games   int    `json:"games"`
+		}
+		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+			return err
+		}
+
+		// Ejecutar benchmark en goroutine (no bloquear)
+		go c.runBenchmark(payload.CommitA, payload.CommitB, payload.Games)
+
+		c.conn.WriteJSON(Response{
+			Type: "benchmark_started",
+			Payload: map[string]interface{}{
+				"commit_a": payload.CommitA,
+				"commit_b": payload.CommitB,
+				"games":    payload.Games,
+			},
+		})
+		return nil
+
 	default:
 		return fmt.Errorf("unknown message type: %s", msg.Type)
 	}
@@ -414,4 +450,154 @@ func (c *Client) sendBoardState(cmdResponse string) error {
 		Payload: json.RawMessage(state),
 	})
 	return nil
+}
+
+// CommitInfo representa un commit de git
+type CommitInfo struct {
+	Hash    string `json:"hash"`
+	Message string `json:"message"`
+	Date    string `json:"date"`
+}
+
+// getGitCommits obtiene los últimos N commits del repositorio
+func getGitCommits(n int) ([]CommitInfo, error) {
+	cmd := exec.Command("git", "log", "--oneline", "-"+fmt.Sprintf("%d", n), "--pretty=format:%h|%s|%ar")
+	cmd.Dir = ".." // Ejecutar desde directorio padre (donde está el repo)
+
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git commits: %v", err)
+	}
+
+	lines := strings.Split(string(output), "\n")
+	var commits []CommitInfo
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, "|", 3)
+		if len(parts) >= 2 {
+			date := ""
+			if len(parts) >= 3 {
+				date = parts[2]
+			}
+			commits = append(commits, CommitInfo{
+				Hash:    parts[0],
+				Message: parts[1],
+				Date:    date,
+			})
+		}
+	}
+
+	return commits, nil
+}
+
+// runBenchmark ejecuta gitbench.py y envía la salida al cliente
+func (c *Client) runBenchmark(commitA, commitB string, games int) {
+	log.Printf("[BENCHMARK] Starting: %s vs %s (%d games)", commitA, commitB, games)
+
+	// Preparar comando
+	var cmd *exec.Cmd
+	if commitA == "HEAD" {
+		// Usar gitbench.py para HEAD vs commitB
+		cmd = exec.Command("python3", "../benchmark/gitbench.py",
+			"--vs-commit", commitB,
+			"--games", fmt.Sprintf("%d", games),
+			"--openings", "../benchmark/openings.epd")
+	} else {
+		// Usar match.py directamente si ambos commits son específicos
+		// (requiere compilar primero, simplificamos usando gitbench)
+		c.sendBenchmarkLine(fmt.Sprintf("Modo avanzado: compilando commits %s y %s...", commitA, commitB), "info")
+		c.sendBenchmarkLine("Usando comparación HEAD vs commit", "info")
+		cmd = exec.Command("python3", "../benchmark/gitbench.py",
+			"--vs-commit", commitB,
+			"--games", fmt.Sprintf("%d", games),
+			"--openings", "../benchmark/openings.epd")
+	}
+
+	cmd.Dir = "."
+
+	// Capturar stdout y stderr
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		c.sendBenchmarkError(fmt.Sprintf("Failed to create stdout pipe: %v", err))
+		return
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		c.sendBenchmarkError(fmt.Sprintf("Failed to create stderr pipe: %v", err))
+		return
+	}
+
+	// Iniciar comando
+	if err := cmd.Start(); err != nil {
+		c.sendBenchmarkError(fmt.Sprintf("Failed to start benchmark: %v", err))
+		return
+	}
+
+	// Leer stdout en goroutine
+	go func() {
+		scanner := bufio.NewScanner(stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			c.sendBenchmarkLine(line, "info")
+		}
+	}()
+
+	// Leer stderr en goroutine
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			c.sendBenchmarkLine(line, "error")
+		}
+	}()
+
+	// Esperar a que termine
+	if err := cmd.Wait(); err != nil {
+		log.Printf("[BENCHMARK] Process finished with error: %v", err)
+		// No enviar error si ya recibimos output
+	}
+
+	// Enviar evento de completado
+	c.conn.WriteJSON(Response{
+		Type:    "benchmark_complete",
+		Payload: map[string]string{"status": "done"},
+	})
+
+	log.Printf("[BENCHMARK] Completed: %s vs %s", commitA, commitB)
+}
+
+// sendBenchmarkLine envía una línea de output al cliente
+func (c *Client) sendBenchmarkLine(line string, lineType string) {
+	// Determinar tipo basado en contenido
+	if strings.Contains(line, "✅") || strings.Contains(line, "✓") || strings.Contains(line, "CONCLUSIÓN: El motor A es SIGNIFICATIVAMENTE MEJOR") {
+		lineType = "result"
+	} else if strings.Contains(line, "❌") || strings.Contains(line, "Error") || strings.Contains(line, "Falla") {
+		lineType = "error"
+	} else if strings.Contains(line, "gana") || strings.Contains(line, "Empate") || strings.Contains(line, "movs") {
+		lineType = "progress"
+	} else if strings.Contains(line, "ELO") || strings.Contains(line, "Intervalo") || strings.Contains(line, "Victorias") {
+		lineType = "result"
+	}
+
+	c.conn.WriteJSON(Response{
+		Type: "benchmark_output",
+		Payload: map[string]string{
+			"line": line,
+			"type": lineType,
+		},
+	})
+}
+
+// sendBenchmarkError envía un error al cliente
+func (c *Client) sendBenchmarkError(message string) {
+	c.conn.WriteJSON(Response{
+		Type: "benchmark_error",
+		Payload: map[string]string{
+			"message": message,
+		},
+	})
 }
