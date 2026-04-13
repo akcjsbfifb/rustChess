@@ -2,6 +2,7 @@ use crate::board::types::{Color, Move, PieceType};
 use crate::board::Board;
 use crate::fen;
 use crate::movegen::{generate_moves, is_square_attacked, perft};
+use crate::search;
 use serde::Serialize;
 use std::io::{self, BufRead, Write};
 
@@ -191,57 +192,45 @@ impl UciEngine {
         serde_json::to_string(&LegalMovesResponse { moves: legal_moves, count }).unwrap()
     }
 
-    fn cmd_go(&self, _parts: &[&str]) -> String {
+    fn cmd_go(&self, parts: &[&str]) -> String {
+        use crate::search::{search, SearchInfo};
         use std::time::Instant;
 
+        // Parse depth from command (default: 4)
+        let depth = if parts.len() > 1 { parts[1].parse().unwrap_or(4) } else { 4 };
+
         let start = Instant::now();
-        let moves = generate_moves(&self.board);
-        let mut legal_moves = Vec::new();
 
-        // Filtrar movimientos legales
-        for mv in moves {
-            let mut test_board = Board::new(
-                self.board.squares,
-                self.board.side_to_move,
-                self.board.undo_info.clone(),
-                self.board.can_castle,
-                self.board.white_king_index,
-                self.board.black_king_index,
-            );
-            test_board.make_move(mv);
+        // Clone board for search
+        let mut search_board = Board::new(
+            self.board.squares,
+            self.board.side_to_move,
+            self.board.undo_info.clone(),
+            self.board.can_castle,
+            self.board.white_king_index,
+            self.board.black_king_index,
+        );
 
-            let king_sq = if self.board.side_to_move == Color::White {
-                test_board.white_king_index
-            } else {
-                test_board.black_king_index
-            };
+        // Run search
+        let (best_move, score, info) = search(&mut search_board, depth);
 
-            if !is_square_attacked(&test_board, king_sq, self.board.side_to_move.opponent()) {
-                legal_moves.push(mv);
-            }
-        }
-
-        if legal_moves.is_empty() {
-            return serde_json::to_string(&ErrorResponse { error: "No legal moves".to_string() }).unwrap();
-        }
-
-        // Seleccionar movimiento aleatorio
-        use std::time::{SystemTime, UNIX_EPOCH};
-        let seed = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos() as usize;
-        let index = seed % legal_moves.len();
-        let best = legal_moves[index];
-        let eval = 0; // TODO: implementar evaluación
-        let nodes = legal_moves.len() as u64;
         let time_ms = start.elapsed().as_millis();
 
-        serde_json::to_string(&BestMoveResult {
-            best_move: format!("{}{}", index_to_square(best.from), index_to_square(best.to)),
-            eval,
-            depth: 1,
-            nodes,
-            time_ms,
-        })
-        .unwrap()
+        match best_move {
+            Some(mv) => serde_json::to_string(&BestMoveResult {
+                best_move: format!("{}{}", index_to_square(mv.from), index_to_square(mv.to)),
+                eval: score,
+                depth,
+                nodes: info.nodes,
+                time_ms,
+            })
+            .unwrap(),
+            None => {
+                // No legal moves - game over
+                serde_json::to_string(&ErrorResponse { error: "No legal moves (checkmate or stalemate)".to_string() })
+                    .unwrap()
+            }
+        }
     }
 
     fn cmd_perft(&self, parts: &[&str]) -> String {

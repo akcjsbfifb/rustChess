@@ -6,6 +6,7 @@ class ChessBoard {
         this.isFlipped = false;
         this.currentFEN = '';
         this.legalMoves = [];
+        this.lastState = null;
         
         this.pieceSymbols = {
             'king': 'k',
@@ -16,8 +17,10 @@ class ChessBoard {
             'pawn': 'p'
         };
         
-        this.pieceImages = {};
-        this.boardImage = '/images/boards/green.png';
+        this.unicodePieces = {
+            'white': { 'king': '♔', 'queen': '♕', 'rook': '♖', 'bishop': '♗', 'knight': '♘', 'pawn': '♙' },
+            'black': { 'king': '♚', 'queen': '♛', 'rook': '♜', 'bishop': '♝', 'knight': '♞', 'pawn': '♟' }
+        };
         
         this.init();
     }
@@ -26,8 +29,6 @@ class ChessBoard {
         this.createBoard();
         this.setupEventListeners();
         this.setupWebSocketHandlers();
-        
-        // Start WebSocket connection
         chessWS.connect();
     }
     
@@ -37,11 +38,10 @@ class ChessBoard {
         const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
         const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
         
-        // Crear contenedor flex para el tablero
         const boardWrapper = document.createElement('div');
         boardWrapper.className = 'flex flex-col items-center';
         
-        // Fila de coordenadas superiores
+        // Coordenadas superiores
         const topCoords = document.createElement('div');
         topCoords.className = 'flex h-5 w-[500px]';
         const filesToShow = this.isFlipped ? files.slice().reverse() : files;
@@ -50,7 +50,7 @@ class ChessBoard {
             '<div class="w-5 flex-shrink-0"></div>';
         boardWrapper.appendChild(topCoords);
         
-        // Área principal del tablero
+        // Área principal
         const mainArea = document.createElement('div');
         mainArea.className = 'flex w-[500px]';
         
@@ -66,7 +66,7 @@ class ChessBoard {
         }
         mainArea.appendChild(leftCoords);
         
-        // El tablero grid
+        // Tablero grid
         const boardGrid = document.createElement('div');
         boardGrid.className = 'board-grid border-2 border-[#404040] rounded';
         
@@ -108,7 +108,7 @@ class ChessBoard {
         
         boardWrapper.appendChild(mainArea);
         
-        // Fila de coordenadas inferiores
+        // Coordenadas inferiores
         const bottomCoords = document.createElement('div');
         bottomCoords.className = 'flex h-5 w-[500px]';
         bottomCoords.innerHTML = '<div class="w-5 flex-shrink-0"></div>' + 
@@ -150,21 +150,19 @@ class ChessBoard {
             setTimeout(() => btn.textContent = originalText, 1000);
         });
         
-        // Cargar FEN personalizado
         document.getElementById('btn-load-fen').addEventListener('click', () => {
             const fenInput = document.getElementById('fen-load-input');
             const fen = fenInput.value.trim();
             
             if (fen) {
                 chessWS.send({ type: 'init', payload: { fen: fen } });
-                fenInput.value = ''; // Limpiar después de cargar
+                fenInput.value = '';
                 this.updateStatus('Cargando posición FEN...');
             } else {
                 this.updateStatus('Por favor ingresa un FEN válido');
             }
         });
         
-        // Cargar posición inicial
         document.getElementById('btn-startpos').addEventListener('click', () => {
             chessWS.send({ type: 'init', payload: { fen: '' } });
             this.updateStatus('Cargando posición inicial...');
@@ -197,20 +195,40 @@ class ChessBoard {
         });
     }
     
+    createPieceElement(piece, colorCode, pieceCode) {
+        const pieceEl = document.createElement('div');
+        pieceEl.className = `piece ${piece.color}`;
+        
+        const img = document.createElement('img');
+        img.src = `/images/pieces/${colorCode}${pieceCode}.png`;
+        img.alt = `${piece.color} ${piece.piece}`;
+        img.draggable = false;
+        
+        img.onerror = () => {
+            // Fallback a símbolo Unicode
+            pieceEl.innerHTML = '';
+            pieceEl.textContent = this.unicodePieces[piece.color][piece.piece] || '?';
+            pieceEl.style.cssText = 'width: 58px; height: 58px; display: flex; align-items: center; justify-content: center; font-size: 48px; color: ' + 
+                (piece.color === 'white' ? '#fff' : '#000') + '; text-shadow: ' + 
+                (piece.color === 'white' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none') + ';';
+        };
+        
+        pieceEl.appendChild(img);
+        return pieceEl;
+    }
+    
     updateBoard(state) {
         if (!state) return;
         
         this.lastState = state;
         this.currentFEN = state.fen;
         
-        // Update FEN input
         document.getElementById('fen-input').value = state.fen;
+        document.getElementById('fen-load-input').value = state.fen;
         
-        // Update turn indicator
         const turnText = state.turn === 'white' ? 'Turno: Blancas' : 'Turno: Negras';
         document.getElementById('turn-indicator').textContent = turnText;
         
-        // Update last move
         const lastMoveEl = document.getElementById('last-move');
         if (state.last_move) {
             lastMoveEl.textContent = `Último movimiento: ${state.last_move.from} → ${state.last_move.to}`;
@@ -218,7 +236,7 @@ class ChessBoard {
             lastMoveEl.textContent = '';
         }
         
-        // Clear board
+        // Limpiar tablero
         const grid = this.board.querySelector('.board-grid');
         if (grid) {
             const squares = grid.querySelectorAll('.square');
@@ -228,7 +246,7 @@ class ChessBoard {
             });
         }
         
-        // Place pieces
+        // Colocar piezas
         if (state.squares) {
             state.squares.forEach((piece, index) => {
                 if (piece) {
@@ -236,23 +254,14 @@ class ChessBoard {
                     if (square) {
                         const pieceCode = this.pieceSymbols[piece.piece];
                         const colorCode = piece.color === 'white' ? 'w' : 'b';
-                        const imgPath = `/images/pieces/${colorCode}${pieceCode}.png?v=2`;
-                        
-                        const pieceEl = document.createElement('img');
-                        pieceEl.className = `piece ${piece.color}`;
-                        pieceEl.src = imgPath;
-                        pieceEl.alt = `${piece.color} ${piece.piece}`;
-                        pieceEl.draggable = false;
-                        pieceEl.onerror = function() {
-                            console.error('Failed to load piece image:', imgPath);
-                        };
+                        const pieceEl = this.createPieceElement(piece, colorCode, pieceCode);
                         square.appendChild(pieceEl);
                     }
                 }
             });
         }
         
-        // Highlight last move
+        // Resaltar último movimiento
         if (state.last_move) {
             const fromIdx = this.squareToIndex(state.last_move.from);
             const toIdx = this.squareToIndex(state.last_move.to);
@@ -283,7 +292,6 @@ class ChessBoard {
         const file = square.charCodeAt(0) - 'a'.charCodeAt(0);
         const rank = 8 - parseInt(square[1]);
         
-        // Devuelve índice lógico (0-63), independiente de la orientación visual
         return rank * 8 + file;
     }
     
@@ -296,27 +304,20 @@ class ChessBoard {
     handleSquareClick(event, square) {
         const squareName = square.dataset.square;
         const piece = square.querySelector('.piece');
-        console.log('Clicked square:', squareName, 'Has piece:', !!piece);
         
-        // If we have a selected square and this is a valid move
         if (this.selectedSquare) {
-            console.log('Have selected square, checking for valid move to:', squareName);
             const move = this.validMoves.find(m => m.to === squareName);
-            console.log('Found move:', move);
             
             if (move) {
-                // Make the move
                 this.makeMove(this.selectedSquare.dataset.square, squareName);
                 this.clearSelection();
                 return;
             }
         }
         
-        // If clicking on own piece, select it
         if (piece) {
             const isWhitePiece = piece.classList.contains('white');
             const isWhiteTurn = this.lastState && this.lastState.turn === 'white';
-            console.log('Clicked piece - isWhite:', isWhitePiece, 'isWhiteTurn:', isWhiteTurn);
             
             if (isWhitePiece === isWhiteTurn) {
                 this.selectSquare(square);
@@ -334,17 +335,11 @@ class ChessBoard {
         this.selectedSquare = square;
         square.classList.add('selected');
         
-        // Find valid moves from this square
         const fromSquare = square.dataset.square;
-        console.log('Selecting square:', fromSquare);
-        console.log('All legal moves:', this.legalMoves);
         this.validMoves = this.legalMoves.filter(m => m.from === fromSquare);
-        console.log('Valid moves from this square:', this.validMoves);
         
-        // Highlight valid moves
         this.validMoves.forEach(move => {
             const targetSquare = this.getSquareByName(move.to);
-            console.log('Highlighting square:', move.to, targetSquare);
             if (targetSquare) {
                 targetSquare.classList.add('valid-move');
                 if (targetSquare.querySelector('.piece')) {
@@ -424,7 +419,6 @@ class ChessBoard {
     }
 }
 
-// Initialize board when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     new ChessBoard();
 });

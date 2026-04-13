@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -178,10 +179,10 @@ func main() {
 	// Endpoint WebSocket
 	http.HandleFunc("/ws", handleWebSocket)
 
-	log.Println("Server starting on http://localhost:8080")
-	log.Println("Open http://localhost:8080 in your browser")
+	log.Println("Server starting on http://0.0.0.0:8080")
+	log.Println("Open http://<TAILSCALE_IP>:8080 in your browser")
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
 		log.Fatal("Server error:", err)
 	}
 }
@@ -301,9 +302,44 @@ func (c *Client) handleMessage(msg Message) error {
 		return c.sendBoardState(response)
 
 	case "engine_go":
-		response, err := c.engine.SendCommand("go")
+		var payload struct {
+			Depth int `json:"depth"`
+		}
+		// Default depth 4 if not specified
+		depth := 4
+		if err := json.Unmarshal(msg.Payload, &payload); err == nil && payload.Depth > 0 {
+			depth = payload.Depth
+		}
+
+		log.Printf("[ENGINE] Starting search with depth %d...", depth)
+		startTime := time.Now()
+
+		cmd := fmt.Sprintf("go %d", depth)
+		response, err := c.engine.SendCommand(cmd)
 		if err != nil {
 			return err
+		}
+
+		elapsed := time.Since(startTime)
+
+		// Parse response to show thinking info
+		var result map[string]interface{}
+		if err := json.Unmarshal([]byte(response), &result); err == nil {
+			bestMove, _ := result["best_move"].(string)
+			eval, _ := result["eval"].(float64)
+			nodes, _ := result["nodes"].(float64)
+			engineDepth, _ := result["depth"].(float64)
+			timeMs, _ := result["time_ms"].(float64)
+
+			nps := float64(0)
+			if timeMs > 0 {
+				nps = (nodes / timeMs) * 1000
+			}
+
+			log.Printf("[ENGINE] Search complete!")
+			log.Printf("[ENGINE] Best move: %s | Eval: %.0f | Depth: %.0f", bestMove, eval, engineDepth)
+			log.Printf("[ENGINE] Nodes: %.0f | Time: %.0f ms | NPS: %.0f", nodes, timeMs, nps)
+			log.Printf("[ENGINE] Total response time: %v", elapsed)
 		}
 
 		c.conn.WriteJSON(Response{
@@ -312,7 +348,6 @@ func (c *Client) handleMessage(msg Message) error {
 		})
 
 		// Actualizar estado después de que el engine juegue
-		var result map[string]interface{}
 		if err := json.Unmarshal([]byte(response), &result); err == nil {
 			if bestMove, ok := result["best_move"].(string); ok && bestMove != "" {
 				c.engine.SendCommand(fmt.Sprintf("move %s", bestMove))
