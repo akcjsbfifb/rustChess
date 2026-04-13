@@ -1,8 +1,36 @@
 use crate::board::types::{Color, Move, PieceType};
 use crate::board::Board;
-use crate::eval::evaluate;
+use crate::eval::{evaluate, piece_value};
 use crate::movegen::{generate_moves, is_square_attacked};
 use std::time::Instant;
+
+/// MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+/// Score for move ordering. Higher = better capture to try first.
+/// Formula: 10 * victim_value - attacker_value
+/// Examples:
+///   - QxP (Queen takes Pawn): 10*100 - 900 = 100  (GOOD - winning material)
+///   - PxQ (Pawn takes Queen): 10*900 - 100 = 8900 (EXCELLENT - huge win!)
+///   - NxB (Knight takes Bishop): 10*330 - 320 = 2980 (GOOD - small win)
+///   - QxQ (Queen takes Queen): 10*900 - 900 = 8100 (RECAPTURE - important)
+///   - Quiet moves: score = 0 (searched after captures)
+fn mvv_lva_score(mv: &Move) -> i32 {
+    if mv.captured == PieceType::None {
+        return 0; // Quiet moves last
+    }
+    let victim_value = piece_value(mv.captured);
+    let attacker_value = piece_value(mv.piece);
+    10 * victim_value - attacker_value
+}
+
+/// Sort moves by MVV-LVA score (descending)
+/// This dramatically improves Alpha-Beta pruning by trying good captures first
+fn order_moves(moves: &mut [Move]) {
+    moves.sort_by(|a, b| {
+        let score_a = mvv_lva_score(a);
+        let score_b = mvv_lva_score(b);
+        score_b.cmp(&score_a) // Descending: best captures first
+    })
+}
 
 /// Information about the current search
 pub struct SearchInfo {
@@ -56,18 +84,73 @@ fn is_in_check(board: &Board) -> bool {
     is_square_attacked(board, king_sq, board.side_to_move.opponent())
 }
 
+/// Quiescence Search - only searches captures to avoid horizon effect
+/// This prevents the engine from stopping search in the middle of a tactical sequence
+/// (e.g., winning a queen but missing the recapture)
+fn quiescence_search(board: &mut Board, mut alpha: i32, beta: i32, info: &mut SearchInfo) -> i32 {
+    info.nodes += 1;
+
+    // "Stand pat" - the score if we don't capture anything
+    // If we're already losing badly, capturing might save us
+    let stand_pat = evaluate(board);
+
+    // If standing pat is already too good for opponent, return
+    if stand_pat >= beta {
+        return beta;
+    }
+
+    // Update alpha if standing pat is better
+    if stand_pat > alpha {
+        alpha = stand_pat;
+    }
+
+    // Generate only capture moves
+    let mut moves = generate_legal_moves(board);
+    moves.retain(|mv| mv.captured != PieceType::None);
+
+    // Order captures by MVV-LVA
+    order_moves(&mut moves);
+
+    for mv in moves {
+        // Delta pruning: if this capture can't possibly improve alpha, skip it
+        // (capturing with a pawn to promote could be huge, so we add safety margin)
+        let capture_value = crate::eval::piece_value(mv.captured);
+        if stand_pat + capture_value + 200 < alpha {
+            continue; // This capture can't save us, skip it
+        }
+
+        board.make_move(mv);
+        let score = -quiescence_search(board, -beta, -alpha, info);
+        board.unmake_move();
+
+        if score >= beta {
+            return beta; // Beta cutoff
+        }
+        if score > alpha {
+            alpha = score;
+        }
+    }
+
+    alpha
+}
+
 /// Negamax search with alpha-beta pruning
 /// Returns the score from the perspective of the current player
 fn negamax(board: &mut Board, depth: i32, mut alpha: i32, beta: i32, info: &mut SearchInfo) -> i32 {
     info.nodes += 1;
 
-    // Base case: evaluate at leaf nodes
+    // Base case: quiescence search instead of static eval
+    // This searches all capture sequences until "quiet" position
     if depth <= 0 {
-        return evaluate(board);
+        return quiescence_search(board, alpha, beta, info);
     }
 
     // Generate legal moves
-    let moves = generate_legal_moves(board);
+    let mut moves = generate_legal_moves(board);
+
+    // Order moves: try good captures first (MVV-LVA)
+    // This makes Alpha-Beta pruning much more effective
+    order_moves(&mut moves);
 
     // Check for checkmate or stalemate
     if moves.is_empty() {
