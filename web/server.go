@@ -394,10 +394,18 @@ func (c *Client) handleMessage(msg Message) error {
 
 	case "get_commits":
 		// Obtener últimos 20 commits
+		log.Printf("[WS] Handling get_commits request from client")
 		commits, err := getGitCommits(20)
 		if err != nil {
-			return err
+			log.Printf("[WS ERROR] getGitCommits failed: %v", err)
+			c.conn.WriteJSON(Response{
+				Type:    "error",
+				Payload: map[string]string{"message": fmt.Sprintf("Failed to get commits: %v", err)},
+			})
+			return nil
 		}
+
+		log.Printf("[WS] Sending %d commits to client", len(commits))
 
 		c.conn.WriteJSON(Response{
 			Type:    "commits_list",
@@ -461,18 +469,25 @@ type CommitInfo struct {
 
 // getGitCommits obtiene los últimos N commits del repositorio
 func getGitCommits(n int) ([]CommitInfo, error) {
-	cmd := exec.Command("git", "log", "--oneline", "-"+fmt.Sprintf("%d", n), "--pretty=format:%h|%s|%ar")
-	cmd.Dir = ".." // Ejecutar desde directorio padre (donde está el repo)
+	// Detectar directorio del repo (donde está .git)
+	repoDir := getRepoDir()
+	log.Printf("[GIT] Getting %d commits from repo: %s", n, repoDir)
 
-	output, err := cmd.Output()
+	cmd := exec.Command("git", "log", "--oneline", "-"+fmt.Sprintf("%d", n), "--pretty=format:%h|%s|%ar")
+	cmd.Dir = repoDir
+
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get git commits: %v", err)
+		log.Printf("[GIT ERROR] Failed to get commits: %v - Output: %s", err, string(output))
+		return nil, fmt.Errorf("failed to get git commits: %v (output: %s)", err, string(output))
 	}
+
+	log.Printf("[GIT] Got %d bytes of commit log", len(output))
 
 	lines := strings.Split(string(output), "\n")
 	var commits []CommitInfo
 
-	for _, line := range lines {
+	for i, line := range lines {
 		if line == "" {
 			continue
 		}
@@ -487,10 +502,41 @@ func getGitCommits(n int) ([]CommitInfo, error) {
 				Message: parts[1],
 				Date:    date,
 			})
+			log.Printf("[GIT] Commit %d: %s - %s", i, parts[0], parts[1])
 		}
 	}
 
+	log.Printf("[GIT] Parsed %d commits", len(commits))
+
 	return commits, nil
+}
+
+// getRepoDir detecta el directorio raíz del repositorio git
+func getRepoDir() string {
+	// Intentar desde el directorio actual hacia arriba
+	dir, _ := os.Getwd()
+	log.Printf("[GIT] Current directory: %s", dir)
+
+	// Buscar hacia arriba hasta encontrar .git
+	for {
+		gitDir := filepath.Join(dir, ".git")
+		if _, err := os.Stat(gitDir); err == nil {
+			log.Printf("[GIT] Found .git at: %s", dir)
+			return dir
+		}
+
+		// Subir un nivel
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Llegamos a la raíz del sistema
+			break
+		}
+		dir = parent
+	}
+
+	// Fallback: asumir estructura estándar
+	log.Printf("[GIT] .git not found in parents, using relative path: ..")
+	return ".."
 }
 
 // runBenchmark compila dos commits cualquiera y ejecuta match entre ellos
@@ -585,21 +631,27 @@ func (c *Client) runBenchmark(commitA, commitB string, games int) {
 	}
 
 	// Ejecutar match.py
+	repoDir := getRepoDir()
 	log.Printf("[BENCHMARK] Step 8: Running match.py (%d games)...", games)
 	c.sendBenchmarkLine(fmt.Sprintf("🏁 Iniciando match: %d partidas", games), "info")
 	c.sendBenchmarkLine(fmt.Sprintf("   Motor A: %s", commitA), "info")
 	c.sendBenchmarkLine(fmt.Sprintf("   Motor B: %s", commitB), "info")
 	c.sendBenchmarkLine("", "info")
 
-	openingsPath := filepath.Join("..", "benchmark", "openings.epd")
-	cmd := exec.Command("python3", filepath.Join("..", "benchmark", "match.py"),
+	matchPyPath := filepath.Join(repoDir, "benchmark", "match.py")
+	openingsPath := filepath.Join(repoDir, "benchmark", "openings.epd")
+
+	log.Printf("[BENCHMARK] match.py path: %s", matchPyPath)
+	log.Printf("[BENCHMARK] openings path: %s", openingsPath)
+
+	cmd := exec.Command("python3", matchPyPath,
 		"--engine1", motorA,
 		"--engine2", motorB,
 		"--games", fmt.Sprintf("%d", games),
 		"--openings", openingsPath,
 	)
 
-	cmd.Dir = "."
+	cmd.Dir = repoDir
 
 	// Capturar stdout y stderr
 	stdout, err := cmd.StdoutPipe()
@@ -671,7 +723,7 @@ func (c *Client) runBenchmark(commitA, commitB string, games int) {
 
 func verifyCommit(hash string) error {
 	cmd := exec.Command("git", "cat-file", "-t", hash)
-	cmd.Dir = ".."
+	cmd.Dir = getRepoDir()
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("commit not found: %s", hash)
@@ -683,8 +735,9 @@ func verifyCommit(hash string) error {
 }
 
 func getCurrentGitRef() (string, error) {
+	repoDir := getRepoDir()
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
-	cmd.Dir = ".."
+	cmd.Dir = repoDir
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -693,7 +746,7 @@ func getCurrentGitRef() (string, error) {
 	if ref == "HEAD" {
 		// Estamos en detached HEAD, usar el hash
 		cmd = exec.Command("git", "rev-parse", "HEAD")
-		cmd.Dir = ".."
+		cmd.Dir = repoDir
 		output, err = cmd.Output()
 		if err != nil {
 			return "", err
@@ -705,7 +758,7 @@ func getCurrentGitRef() (string, error) {
 
 func hasUncommittedChanges() bool {
 	cmd := exec.Command("git", "status", "--porcelain")
-	cmd.Dir = ".."
+	cmd.Dir = getRepoDir()
 	output, err := cmd.Output()
 	if err != nil {
 		return false
@@ -715,22 +768,23 @@ func hasUncommittedChanges() bool {
 
 func stashChanges() error {
 	cmd := exec.Command("git", "stash", "push", "-m", "benchmark-autostash")
-	cmd.Dir = ".."
+	cmd.Dir = getRepoDir()
 	return cmd.Run()
 }
 
 func popStash() error {
 	cmd := exec.Command("git", "stash", "pop")
-	cmd.Dir = ".."
+	cmd.Dir = getRepoDir()
 	return cmd.Run()
 }
 
 func compileCommit(hash string, outputPath string) error {
-	log.Printf("[COMPILE] Checking out %s...", hash)
+	repoDir := getRepoDir()
+	log.Printf("[COMPILE] Checking out %s in %s...", hash, repoDir)
 
 	// Checkout al commit
 	cmd := exec.Command("git", "checkout", hash)
-	cmd.Dir = ".."
+	cmd.Dir = repoDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git checkout failed: %v - %s", err, string(output))
 	}
@@ -739,13 +793,13 @@ func compileCommit(hash string, outputPath string) error {
 
 	// Compilar
 	cmd = exec.Command("cargo", "build", "--release")
-	cmd.Dir = ".."
+	cmd.Dir = repoDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("cargo build failed: %v - %s", err, string(output))
 	}
 
 	// Copiar binario
-	src := "../target/release/rust_chess"
+	src := filepath.Join(repoDir, "target/release/rust_chess")
 	if _, err := os.Stat(src); os.IsNotExist(err) {
 		return fmt.Errorf("binary not found at %s", src)
 	}
@@ -759,9 +813,10 @@ func compileCommit(hash string, outputPath string) error {
 }
 
 func returnToOriginalRef(ref string) error {
-	log.Printf("[GIT] Returning to %s...", ref)
+	repoDir := getRepoDir()
+	log.Printf("[GIT] Returning to %s in %s...", ref, repoDir)
 	cmd := exec.Command("git", "checkout", ref)
-	cmd.Dir = ".."
+	cmd.Dir = repoDir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git checkout failed: %v - %s", err, string(output))
 	}
