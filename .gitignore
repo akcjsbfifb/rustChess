@@ -2,3 +2,8 @@
 /learning_materials/
 *.md
 .obsidian/
+__pycache__/
+*.pyc
+*.pyo
+.Python/
+*.so
