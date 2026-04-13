@@ -493,56 +493,148 @@ func getGitCommits(n int) ([]CommitInfo, error) {
 	return commits, nil
 }
 
-// runBenchmark ejecuta gitbench.py y envía la salida al cliente
+// runBenchmark compila dos commits cualquiera y ejecuta match entre ellos
 func (c *Client) runBenchmark(commitA, commitB string, games int) {
-	log.Printf("[BENCHMARK] Starting: %s vs %s (%d games)", commitA, commitB, games)
+	log.Printf("[BENCHMARK] ============================================")
+	log.Printf("[BENCHMARK] Starting comparison: %s vs %s (%d games)", commitA, commitB, games)
+	log.Printf("[BENCHMARK] ============================================")
 
-	// Preparar comando
-	var cmd *exec.Cmd
-	if commitA == "HEAD" {
-		// Usar gitbench.py para HEAD vs commitB
-		cmd = exec.Command("python3", "../benchmark/gitbench.py",
-			"--vs-commit", commitB,
-			"--games", fmt.Sprintf("%d", games),
-			"--openings", "../benchmark/openings.epd")
-	} else {
-		// Usar match.py directamente si ambos commits son específicos
-		// (requiere compilar primero, simplificamos usando gitbench)
-		c.sendBenchmarkLine(fmt.Sprintf("Modo avanzado: compilando commits %s y %s...", commitA, commitB), "info")
-		c.sendBenchmarkLine("Usando comparación HEAD vs commit", "info")
-		cmd = exec.Command("python3", "../benchmark/gitbench.py",
-			"--vs-commit", commitB,
-			"--games", fmt.Sprintf("%d", games),
-			"--openings", "../benchmark/openings.epd")
+	// Verificar commits
+	log.Printf("[BENCHMARK] Step 1: Verifying commits...")
+	if err := verifyCommit(commitA); err != nil {
+		log.Printf("[BENCHMARK] ERROR: Commit A invalid: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Commit A invalid: %v", err))
+		return
 	}
+	if err := verifyCommit(commitB); err != nil {
+		log.Printf("[BENCHMARK] ERROR: Commit B invalid: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Commit B invalid: %v", err))
+		return
+	}
+
+	// Guardar referencia actual
+	log.Printf("[BENCHMARK] Step 2: Saving current state...")
+	originalRef, err := getCurrentGitRef()
+	if err != nil {
+		log.Printf("[BENCHMARK] ERROR: Cannot get current ref: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Cannot get current ref: %v", err))
+		return
+	}
+	log.Printf("[BENCHMARK] Current ref: %s", originalRef)
+
+	// Verificar si hay cambios sin commitear
+	log.Printf("[BENCHMARK] Step 3: Checking for uncommitted changes...")
+	hasChanges := hasUncommittedChanges()
+	if hasChanges {
+		log.Printf("[BENCHMARK] Stashing uncommitted changes...")
+		c.sendBenchmarkLine("📦 Guardando cambios actuales...", "info")
+		if err := stashChanges(); err != nil {
+			log.Printf("[BENCHMARK] ERROR: Failed to stash: %v", err)
+			c.sendBenchmarkError(fmt.Sprintf("Failed to stash changes: %v", err))
+			return
+		}
+	}
+
+	// Crear directorio temporal
+	tempDir, err := os.MkdirTemp("", "rust_chess_bench_*")
+	if err != nil {
+		log.Printf("[BENCHMARK] ERROR: Cannot create temp dir: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Cannot create temp dir: %v", err))
+		return
+	}
+	defer os.RemoveAll(tempDir)
+	log.Printf("[BENCHMARK] Step 4: Created temp dir: %s", tempDir)
+
+	motorA := filepath.Join(tempDir, "motor_a")
+	motorB := filepath.Join(tempDir, "motor_b")
+
+	// Compilar Motor A
+	log.Printf("[BENCHMARK] Step 5: Compiling Motor A (%s)...", commitA)
+	c.sendBenchmarkLine(fmt.Sprintf("🔨 Compilando Motor A (%s)...", commitA), "info")
+	if err := compileCommit(commitA, motorA); err != nil {
+		log.Printf("[BENCHMARK] ERROR: Failed to compile Motor A: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Failed to compile Motor A: %v", err))
+		returnToOriginalRef(originalRef)
+		return
+	}
+	c.sendBenchmarkLine(fmt.Sprintf("✅ Motor A compilado: %s", motorA), "info")
+
+	// Compilar Motor B
+	log.Printf("[BENCHMARK] Step 6: Compiling Motor B (%s)...", commitB)
+	c.sendBenchmarkLine(fmt.Sprintf("🔨 Compilando Motor B (%s)...", commitB), "info")
+	if err := compileCommit(commitB, motorB); err != nil {
+		log.Printf("[BENCHMARK] ERROR: Failed to compile Motor B: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Failed to compile Motor B: %v", err))
+		returnToOriginalRef(originalRef)
+		return
+	}
+	c.sendBenchmarkLine(fmt.Sprintf("✅ Motor B compilado: %s", motorB), "info")
+
+	// Volver a la referencia original
+	log.Printf("[BENCHMARK] Step 7: Returning to original ref: %s", originalRef)
+	if err := returnToOriginalRef(originalRef); err != nil {
+		log.Printf("[BENCHMARK] WARNING: Failed to return to original ref: %v", err)
+	}
+
+	// Restaurar stash si existía
+	if hasChanges {
+		log.Printf("[BENCHMARK] Restoring stashed changes...")
+		if err := popStash(); err != nil {
+			log.Printf("[BENCHMARK] WARNING: Failed to pop stash: %v", err)
+		}
+	}
+
+	// Ejecutar match.py
+	log.Printf("[BENCHMARK] Step 8: Running match.py (%d games)...", games)
+	c.sendBenchmarkLine(fmt.Sprintf("🏁 Iniciando match: %d partidas", games), "info")
+	c.sendBenchmarkLine(fmt.Sprintf("   Motor A: %s", commitA), "info")
+	c.sendBenchmarkLine(fmt.Sprintf("   Motor B: %s", commitB), "info")
+	c.sendBenchmarkLine("", "info")
+
+	openingsPath := filepath.Join("..", "benchmark", "openings.epd")
+	cmd := exec.Command("python3", filepath.Join("..", "benchmark", "match.py"),
+		"--engine1", motorA,
+		"--engine2", motorB,
+		"--games", fmt.Sprintf("%d", games),
+		"--openings", openingsPath,
+	)
 
 	cmd.Dir = "."
 
 	// Capturar stdout y stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		log.Printf("[BENCHMARK] ERROR: Failed to create stdout pipe: %v", err)
 		c.sendBenchmarkError(fmt.Sprintf("Failed to create stdout pipe: %v", err))
 		return
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		log.Printf("[BENCHMARK] ERROR: Failed to create stderr pipe: %v", err)
 		c.sendBenchmarkError(fmt.Sprintf("Failed to create stderr pipe: %v", err))
 		return
 	}
 
 	// Iniciar comando
+	log.Printf("[BENCHMARK] Starting match.py process...")
 	if err := cmd.Start(); err != nil {
-		c.sendBenchmarkError(fmt.Sprintf("Failed to start benchmark: %v", err))
+		log.Printf("[BENCHMARK] ERROR: Failed to start match: %v", err)
+		c.sendBenchmarkError(fmt.Sprintf("Failed to start match: %v", err))
 		return
 	}
+	log.Printf("[BENCHMARK] match.py PID: %d", cmd.Process.Pid)
 
 	// Leer stdout en goroutine
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
+			log.Printf("[BENCHMARK stdout] %s", line)
 			c.sendBenchmarkLine(line, "info")
+		}
+		if err := scanner.Err(); err != nil {
+			log.Printf("[BENCHMARK stdout error] %v", err)
 		}
 	}()
 
@@ -551,14 +643,17 @@ func (c *Client) runBenchmark(commitA, commitB string, games int) {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
+			log.Printf("[BENCHMARK stderr] %s", line)
 			c.sendBenchmarkLine(line, "error")
 		}
 	}()
 
 	// Esperar a que termine
+	log.Printf("[BENCHMARK] Waiting for match.py to complete...")
 	if err := cmd.Wait(); err != nil {
-		log.Printf("[BENCHMARK] Process finished with error: %v", err)
-		// No enviar error si ya recibimos output
+		log.Printf("[BENCHMARK] match.py finished with error: %v", err)
+	} else {
+		log.Printf("[BENCHMARK] match.py completed successfully")
 	}
 
 	// Enviar evento de completado
@@ -567,7 +662,118 @@ func (c *Client) runBenchmark(commitA, commitB string, games int) {
 		Payload: map[string]string{"status": "done"},
 	})
 
-	log.Printf("[BENCHMARK] Completed: %s vs %s", commitA, commitB)
+	log.Printf("[BENCHMARK] ============================================")
+	log.Printf("[BENCHMARK] Comparison completed: %s vs %s", commitA, commitB)
+	log.Printf("[BENCHMARK] ============================================")
+}
+
+// Funciones auxiliares para benchmark
+
+func verifyCommit(hash string) error {
+	cmd := exec.Command("git", "cat-file", "-t", hash)
+	cmd.Dir = ".."
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("commit not found: %s", hash)
+	}
+	if strings.TrimSpace(string(output)) != "commit" {
+		return fmt.Errorf("not a valid commit: %s", hash)
+	}
+	return nil
+}
+
+func getCurrentGitRef() (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = ".."
+	output, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	ref := strings.TrimSpace(string(output))
+	if ref == "HEAD" {
+		// Estamos en detached HEAD, usar el hash
+		cmd = exec.Command("git", "rev-parse", "HEAD")
+		cmd.Dir = ".."
+		output, err = cmd.Output()
+		if err != nil {
+			return "", err
+		}
+		ref = strings.TrimSpace(string(output))
+	}
+	return ref, nil
+}
+
+func hasUncommittedChanges() bool {
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = ".."
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	return len(strings.TrimSpace(string(output))) > 0
+}
+
+func stashChanges() error {
+	cmd := exec.Command("git", "stash", "push", "-m", "benchmark-autostash")
+	cmd.Dir = ".."
+	return cmd.Run()
+}
+
+func popStash() error {
+	cmd := exec.Command("git", "stash", "pop")
+	cmd.Dir = ".."
+	return cmd.Run()
+}
+
+func compileCommit(hash string, outputPath string) error {
+	log.Printf("[COMPILE] Checking out %s...", hash)
+
+	// Checkout al commit
+	cmd := exec.Command("git", "checkout", hash)
+	cmd.Dir = ".."
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git checkout failed: %v - %s", err, string(output))
+	}
+
+	log.Printf("[COMPILE] Building %s...", hash)
+
+	// Compilar
+	cmd = exec.Command("cargo", "build", "--release")
+	cmd.Dir = ".."
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cargo build failed: %v - %s", err, string(output))
+	}
+
+	// Copiar binario
+	src := "../target/release/rust_chess"
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+		return fmt.Errorf("binary not found at %s", src)
+	}
+
+	if err := copyFile(src, outputPath); err != nil {
+		return fmt.Errorf("copy failed: %v", err)
+	}
+
+	log.Printf("[COMPILE] %s compiled successfully to %s", hash, outputPath)
+	return nil
+}
+
+func returnToOriginalRef(ref string) error {
+	log.Printf("[GIT] Returning to %s...", ref)
+	cmd := exec.Command("git", "checkout", ref)
+	cmd.Dir = ".."
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git checkout failed: %v - %s", err, string(output))
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	input, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, input, 0755)
 }
 
 // sendBenchmarkLine envía una línea de output al cliente
