@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -31,11 +32,18 @@ var (
 
 // GetSharedEngine obtiene la instancia compartida del engine (singleton)
 func GetSharedEngine() (*EngineProcess, error) {
-	var err error
+	var initErr error
 	sharedEngineOnce.Do(func() {
+		var err error
 		sharedEngine, err = NewEngineProcess()
+		if err != nil {
+			initErr = err
+		}
 	})
-	return sharedEngine, err
+	if initErr != nil {
+		return nil, initErr
+	}
+	return sharedEngine, nil
 }
 
 // EngineProcess encapsula el proceso del engine de ajedrez
@@ -140,8 +148,27 @@ func (e *EngineProcess) Stop() error {
 
 // Client representa una conexión WebSocket
 type Client struct {
-	conn   *websocket.Conn
-	engine *EngineProcess
+	conn         *websocket.Conn
+	engine       *EngineProcess
+	lastMessage  time.Time
+	messageCount int
+	rateLimitMu  sync.Mutex
+}
+
+// checkRateLimit verifica si el cliente puede enviar otro mensaje (max 10/segundo)
+func (c *Client) checkRateLimit() bool {
+	c.rateLimitMu.Lock()
+	defer c.rateLimitMu.Unlock()
+
+	now := time.Now()
+	if now.Sub(c.lastMessage) > time.Second {
+		// Reset después de 1 segundo
+		c.messageCount = 0
+		c.lastMessage = now
+	}
+
+	c.messageCount++
+	return c.messageCount <= 10
 }
 
 // Message representa un mensaje WebSocket
@@ -154,6 +181,25 @@ type Message struct {
 type Response struct {
 	Type    string      `json:"type"`
 	Payload interface{} `json:"payload"`
+}
+
+// handleGetCommits devuelve la lista de commits vía HTTP GET (simple, funciona con Tailscale)
+func handleGetCommits(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[HTTP] GET /api/commits from %s", r.RemoteAddr)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*") // Permitir CORS para Tailscale
+
+	commits, err := getGitCommits(20)
+	if err != nil {
+		log.Printf("[HTTP ERROR] Failed to get commits: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	log.Printf("[HTTP] Returning %d commits", len(commits))
+	json.NewEncoder(w).Encode(commits)
 }
 
 func main() {
@@ -178,6 +224,9 @@ func main() {
 
 	// Endpoint WebSocket
 	http.HandleFunc("/ws", handleWebSocket)
+
+	// Endpoint REST para commits (simple HTTP GET)
+	http.HandleFunc("/api/commits", handleGetCommits)
 
 	log.Println("Server starting on http://0.0.0.0:8080")
 	log.Println("Open http://<TAILSCALE_IP>:8080 in your browser")
@@ -219,7 +268,11 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	client := &Client{conn: conn, engine: engine}
+	client := &Client{
+		conn:        conn,
+		engine:      engine,
+		lastMessage: time.Now(),
+	}
 
 	// Loop principal de mensajes
 	for {
@@ -229,6 +282,16 @@ func handleWebSocket(w http.ResponseWriter, r *http.Request) {
 				log.Printf("WebSocket error: %v", err)
 			}
 			break
+		}
+
+		// Rate limiting: max 10 mensajes por segundo
+		if !client.checkRateLimit() {
+			log.Printf("[RATE LIMIT] Client %s exceeded rate limit", r.RemoteAddr)
+			conn.WriteJSON(Response{
+				Type:    "error",
+				Payload: map[string]string{"message": "Rate limit exceeded"},
+			})
+			continue
 		}
 
 		if err := client.handleMessage(msg); err != nil {
@@ -469,17 +532,24 @@ type CommitInfo struct {
 
 // getGitCommits obtiene los últimos N commits del repositorio
 func getGitCommits(n int) ([]CommitInfo, error) {
+	// Validar input
+	if n <= 0 || n > 100 {
+		n = 20 // Default seguro
+	}
+
 	// Detectar directorio del repo (donde está .git)
 	repoDir := getRepoDir()
 	log.Printf("[GIT] Getting %d commits from repo: %s", n, repoDir)
 
-	cmd := exec.Command("git", "log", "--oneline", "-"+fmt.Sprintf("%d", n), "--pretty=format:%h|%s|%ar")
+	// Usar argumentos como slice para evitar injection
+	cmd := exec.Command("git", "log", "--oneline", fmt.Sprintf("-%d", n), "--pretty=format:%h|%s|%ar")
 	cmd.Dir = repoDir
 
-	output, err := cmd.CombinedOutput()
+	// Usar Output en vez de CombinedOutput para evitar deadlock con stderr
+	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("[GIT ERROR] Failed to get commits: %v - Output: %s", err, string(output))
-		return nil, fmt.Errorf("failed to get git commits: %v (output: %s)", err, string(output))
+		log.Printf("[GIT ERROR] Failed to get commits: %v", err)
+		return nil, fmt.Errorf("failed to get git commits: %v", err)
 	}
 
 	log.Printf("[GIT] Got %d bytes of commit log", len(output))
@@ -779,22 +849,41 @@ func popStash() error {
 }
 
 func compileCommit(hash string, outputPath string) error {
+	// Validar hash (evitar command injection)
+	if len(hash) == 0 || len(hash) > 40 {
+		return fmt.Errorf("invalid commit hash length: %d", len(hash))
+	}
+	// Solo permitir hex chars
+	for _, c := range hash {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return fmt.Errorf("invalid commit hash characters")
+		}
+	}
+
 	repoDir := getRepoDir()
 	log.Printf("[COMPILE] Checking out %s in %s...", hash, repoDir)
 
 	// Checkout al commit
 	cmd := exec.Command("git", "checkout", hash)
 	cmd.Dir = repoDir
-	if output, err := cmd.CombinedOutput(); err != nil {
+	output, err := cmd.CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("git checkout failed: %v - %s", err, string(output))
 	}
 
 	log.Printf("[COMPILE] Building %s...", hash)
 
-	// Compilar
-	cmd = exec.Command("cargo", "build", "--release")
+	// Compilar con timeout de 5 minutos
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	cmd = exec.CommandContext(ctx, "cargo", "build", "--release")
 	cmd.Dir = repoDir
-	if output, err := cmd.CombinedOutput(); err != nil {
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("cargo build timed out after 5 minutes")
+		}
 		return fmt.Errorf("cargo build failed: %v - %s", err, string(output))
 	}
 

@@ -9,7 +9,14 @@ class BenchmarkUI {
     }
 
     init() {
-        // Cargar commits disponibles al inicio
+        // Conectar WebSocket (igual que board.js)
+        try {
+            chessWS.connect();
+        } catch (e) {
+            console.error('[Benchmark] WebSocket connect error:', e);
+        }
+
+        // Cargar commits disponibles al inicio (HTTP, independiente del WebSocket)
         this.loadCommits();
 
         // Botón ejecutar
@@ -43,31 +50,74 @@ class BenchmarkUI {
     }
 
     loadCommits() {
-        // En una versión simple, pedimos los commits al servidor
-        // Por ahora, usamos valores hardcodeados comunes
+        const selectA = document.getElementById('commit-a');
         const selectB = document.getElementById('commit-b');
-        const commonCommits = [
+        
+        // Limpiar opciones existentes (excepto la primera)
+        while (selectA.children.length > 1) selectA.removeChild(selectA.lastChild);
+        while (selectB.children.length > 1) selectB.removeChild(selectB.lastChild);
+        
+        // Mensaje de carga
+        const loadingA = document.createElement('option');
+        loadingA.textContent = 'Cargando commits...';
+        selectA.appendChild(loadingA);
+        
+        const loadingB = document.createElement('option');
+        loadingB.textContent = 'Cargando commits...';
+        selectB.appendChild(loadingB);
+
+        // HTTP GET simple - funciona con Tailscale y es más confiable que WebSocket
+        console.log('[Benchmark] Fetching commits via HTTP...');
+        fetch('/api/commits')
+            .then(response => {
+                if (!response.ok) {
+                    if (response.status === 503) {
+                        throw new Error('Servidor ocupado, intentá más tarde');
+                    }
+                    throw new Error(`Error del servidor: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(commits => {
+                if (!Array.isArray(commits)) {
+                    throw new Error('Respuesta inválida del servidor');
+                }
+                if (commits.length === 0) {
+                    throw new Error('No se encontraron commits');
+                }
+                console.log('[Benchmark] Received', commits.length, 'commits via HTTP');
+                this.populateDropdowns(commits);
+            })
+            .catch(error => {
+                console.error('[Benchmark] Failed to load commits:', error);
+                // No mostrar error en terminal, solo usar valores por defecto
+                this.loadDefaultCommits();
+            });
+    }
+    
+    loadDefaultCommits() {
+        // Fallback si el servidor no responde
+        const selectA = document.getElementById('commit-a');
+        const selectB = document.getElementById('commit-b');
+        
+        const defaultCommits = [
+            { value: 'HEAD', label: 'HEAD (actual)' },
             { value: 'HEAD~1', label: 'HEAD~1 (1 commit atrás)' },
             { value: 'HEAD~3', label: 'HEAD~3 (3 commits atrás)' },
             { value: 'HEAD~5', label: 'HEAD~5 (5 commits atrás)' },
-            { value: 'HEAD~10', label: 'HEAD~10 (10 commits atrás)' },
         ];
-
-        commonCommits.forEach(commit => {
-            const option = document.createElement('option');
-            option.value = commit.value;
-            option.textContent = commit.label;
-            selectB.appendChild(option);
+        
+        defaultCommits.forEach(commit => {
+            const optionA = document.createElement('option');
+            optionA.value = commit.value;
+            optionA.textContent = commit.label;
+            selectA.appendChild(optionA);
+            
+            const optionB = document.createElement('option');
+            optionB.value = commit.value;
+            optionB.textContent = commit.label;
+            selectB.appendChild(optionB);
         });
-
-        // Si el servidor soporta get_commits, lo usamos
-        if (typeof chessWS !== 'undefined' && chessWS.isConnected) {
-            chessWS.send({ type: 'get_commits' });
-            chessWS.on('commits_list', (payload) => {
-                // Actualizar dropdowns con commits reales
-                this.populateDropdowns(payload);
-            });
-        }
     }
 
     populateDropdowns(commits) {
@@ -101,8 +151,9 @@ class BenchmarkUI {
         const commitB = document.getElementById('commit-b').value;
         const games = parseInt(document.getElementById('num-games').value);
 
-        if (!commitB) {
-            alert('Seleccioná el commit B para comparar');
+        // Validación de inputs
+        if (!commitA || !commitB) {
+            alert('Seleccioná ambos commits para comparar');
             return;
         }
 
@@ -111,12 +162,24 @@ class BenchmarkUI {
             return;
         }
 
+        if (!games || games < 1 || games > 200) {
+            alert('Número de partidas inválido (1-200)');
+            return;
+        }
+
+        // Validar formato de hash (solo hex chars, 7-40 chars)
+        const isValidHash = (hash) => /^[a-f0-9]{7,40}$/i.test(hash);
+        if (!isValidHash(commitA) || !isValidHash(commitB)) {
+            alert('Formato de commit inválido');
+            return;
+        }
+
         this.isRunning = true;
         this.terminal.innerHTML = '';
         this.updateStatus('Ejecutando...', 'running');
 
-        // Enviar comando al servidor
-        if (typeof chessWS !== 'undefined') {
+        // Enviar comando al servidor con manejo de error
+        try {
             chessWS.send({
                 type: 'run_benchmark',
                 payload: {
@@ -131,8 +194,8 @@ class BenchmarkUI {
             this.appendOutput(`Motor B: ${commitB}\n`, 'info');
             this.appendOutput(`Partidas: ${games}\n`, 'info');
             this.appendOutput(`\n`, 'info');
-        } else {
-            this.appendOutput('❌ WebSocket no conectado', 'error');
+        } catch (e) {
+            this.appendOutput(`❌ Error al enviar comando: ${e.message}`, 'error');
             this.isRunning = false;
             this.updateStatus('Error', 'error');
         }
