@@ -7,8 +7,9 @@ Usa el modelo Bradley-Terry para estimar Elo difference
 import sys
 import argparse
 import math
+from typing import Optional, Dict, Any
 
-def calculate_elo(wins: int, losses: int, draws: int) -> dict:
+def calculate_elo(wins: int, losses: int, draws: int) -> Optional[Dict[str, Any]]:
     """
     Calcula Elo difference y error margins
     
@@ -79,7 +80,7 @@ def calculate_elo(wins: int, losses: int, draws: int) -> dict:
         'ci_upper': elo_diff + error_margin
     }
 
-def format_result(result: dict) -> str:
+def format_result(result: Optional[Dict[str, Any]]) -> str:
     """Formatea resultado para mostrar"""
     if result is None:
         return "Error: No hay partidas"

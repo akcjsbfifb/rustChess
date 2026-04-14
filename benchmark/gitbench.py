@@ -15,6 +15,13 @@ import tempfile
 import shutil
 from pathlib import Path
 
+# Importar elo module con manejo de error
+try:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import elo as elo_module
+except ImportError:
+    elo_module = None
+
 def run_command(cmd, cwd=None, capture=True):
     """Ejecuta comando shell y retorna resultado"""
     try:
@@ -336,7 +343,7 @@ Ejemplos:
         
         # Calcular Elo
         result = calculate_elo(wins, losses, draws)
-        if result:
+        if result and elo_module:
             print(elo_module.format_result(result))
         else:
             print(f"\nCalculá Elo manualmente:")
