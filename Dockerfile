@@ -1,8 +1,13 @@
 # Multi-stage Dockerfile para rust_chess
 # Etapa 1: Compilar el motor Rust
-FROM rust:1.82-slim-bookworm AS rust-builder
+FROM rust:1.82-bookworm AS rust-builder
 
 WORKDIR /build
+
+# Instalar dependencias de build necesarias
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends pkg-config libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copiar manifests primero para cachear dependencias
 COPY Cargo.toml Cargo.lock ./
