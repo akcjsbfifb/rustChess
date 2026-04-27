@@ -1,27 +1,23 @@
-# rustChess ♟️
+# rustChess
 
-A chess engine written in Rust with web UI and benchmarking tools.
+Motor de ajedrez escrito en Rust con interfaz web y herramientas de testing.
 
-[![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)](https://www.rust-lang.org)
-[![Go](https://img.shields.io/badge/Go-1.21%2B-blue)](https://golang.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+## Cómo empezar
 
-## 🚀 Quick Start
-
-### Play Online
+### Jugar en el navegador
 ```bash
 cd web
 go run server.go
-# Open http://localhost:8080
+# Abrir http://localhost:8080
 ```
 
-### Run Engine CLI
+### Usar el motor desde consola
 ```bash
 cargo run --release
-# Then type: go depth 4
+# Escribir: go depth 4
 ```
 
-### Benchmark Two Versions
+### Comparar dos versiones
 ```bash
 cd benchmark
 python3 match.py --engine1 ../target/release/rust_chess \
@@ -29,167 +25,140 @@ python3 match.py --engine1 ../target/release/rust_chess \
                  --games 100
 ```
 
-## 🏗️ Architecture
+## Estructura del proyecto
 
 ```
 rust_chess/
-├── src/           # Rust engine (negamax, alpha-beta, move generation)
-├── web/           # Go web server + WebSocket real-time UI
-├── benchmark/     # Python tools for testing and Elo measurement
-└── docs/          # Architecture diagrams and guides
+├── src/           # Motor en Rust (búsqueda, evaluación, generación de movimientos)
+├── web/           # Servidor Go + UI web con WebSocket
+├── benchmark/     # Herramientas Python para testing y medición Elo
+└── docs/          # Documentación técnica
 ```
 
-## 🧠 Engine Strategies
+## Estrategias del motor
 
-### Search Algorithm
-- **Negamax** with **Alpha-Beta Pruning** - Standard minimax optimization
-- **Depth**: Configurable (default 4-6 plies)
-- **Move Ordering**: No advanced ordering yet (planned: MVV-LVA)
-- **Quiescence Search**: Static evaluation only (planned: selective search at leaf nodes)
+### Algoritmo de búsqueda
+- **Negamax** con **Alpha-Beta Pruning** - Optimización estándar de minimax
+- **Profundidad**: Configurable (default 4-6 plies)
+- **Ordenamiento de movimientos**: Básico (planificado: MVV-LVA)
+- **Búsqueda quiescence**: Evaluación estática nada más (planificado: búsqueda selectiva en hojas)
 
-### Evaluation Function
-- **Material**: Piece values (Pawn=100, Knight=320, Bishop=330, Rook=500, Queen=900)
-- **Piece-Square Tables (PST)**: Bonus/malus for piece positioning
-  - Pawns: Encourage center control and advancement
-  - Knights: Prefer central outposts
-  - Kings: Safety in early/mid game
-- **Mobility**: (Planned) Count legal moves
-- **King Safety**: (Planned) Pawn shield and piece attacks
+### Función de evaluación
+- **Material**: Valores de piezas (Peón=100, Caballo=320, Alfil=330, Torre=500, Dama=900)
+- **Tablas de piezas (PST)**: Bonus/malus por posición
+  - Peones: Control del centro y avance
+  - Caballos: Preferir casillas centrales
+  - Reyes: Seguridad en apertura/medio juego
+- **Movilidad**: (Planificado) Contar movimientos legales
+- **Seguridad del rey**: (Planificado) Escudo de peones y ataques
 
-### Move Generation
-- **Mailbox Board (10x12)**: Fast off-board detection with border squares
-- **Legal Move Filter**: Pseudo-legal generation + check validation
-- **Incremental Updates**: Apply/undo moves without full regeneration
+### Generación de movimientos
+- **Tablero mailbox (10x12)**: Detección rápida de fuera de tablero
+- **Filtro de movimientos legales**: Pseudo-legales + validación de jaque
+- **Actualizaciones incrementales**: Aplicar/deshacer sin regenerar todo
 
-### Optimizations
-- **Bitboards**: (Planned) For faster attack generation
-- **Transposition Table**: (Planned) Zobrist hashing + cache
-- **Iterative Deepening**: (Planned) Time management
-- **Null Move Pruning**: (Planned) For faster cutoffs
+### Optimizaciones futuras
+- **Bitboards**: (Planificado) Generación más rápida de ataques
+- **Tabla de transposición**: (Planificado) Zobrist hashing + cache
+- **Iterative deepening**: (Planificado) Manejo de tiempo
+- **Null move pruning**: (Planificado) Cortes más rápidos
 
-### Tech Stack
+## Componentes
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| **Engine** | Rust | Core chess logic, search algorithms |
-| **Web Server** | Go + Gorilla WebSocket | Real-time multiplayer UI |
-| **Frontend** | Vanilla JS + TailwindCSS | Chess board, move input |
-| **Benchmark** | Python 3 | Statistical testing, Elo calculation |
-| **Protocol** | JSON over WebSocket | Engine communication |
+| Componente | Tecnología | Propósito |
+|------------|------------|-----------|
+| **Motor** | Rust | Lógica del juego, algoritmos de búsqueda |
+| **Servidor web** | Go + Gorilla WebSocket | UI en tiempo real |
+| **Frontend** | JS vanilla + TailwindCSS | Tablero, entrada de movimientos |
+| **Benchmark** | Python 3 | Testing estadístico, cálculo Elo |
+| **Protocolo** | JSON sobre WebSocket | Comunicación motor-servidor |
 
-## 🎯 Features
+## Estado del motor
 
-### Chess Engine
-- ✅ **All piece movement** (pawns, knights, bishops, rooks, queens, kings)
-- ✅ **Special moves**: Castling, en passant, promotion
-- ✅ **Move validation**: Legal move generation, check detection
-- ✅ **Search**: Negamax with alpha-beta pruning
-- ✅ **Evaluation**: Material + position tables (PST)
-- ✅ **UCI Protocol**: Compatible with standard chess interfaces
+- ✅ Movimientos de todas las piezas
+- ✅ Movimientos especiales: Enroque, al paso, promoción
+- ✅ Validación: Movimientos legales, detección de jaque
+- ✅ Búsqueda: Negamax con poda alpha-beta
+- ✅ Evaluación: Material + tablas de posición
+- ✅ Protocolo UCI: Compatible con interfaces estándar
+- 🔄 Ordenamiento de movimientos: MVV-LVA (en progreso)
+- 🔄 Tablas de transposición (planificado)
+- 🔄 Bitboards (planificado)
 
-### Web Interface
-- 🌐 **Real-time multiplayer**: WebSocket sync
-- 📱 **Responsive**: Works on desktop and mobile
-- ⚡ **Engine vs Human**: Play against the AI
-- 🔍 **Debug mode**: See engine thinking
-- 📊 **Benchmark UI**: Compare any two git commits visually
+## Representación del tablero
 
-### Benchmarking
-- 🔄 **Automated matches**: Test any two commits
-- 📈 **Elo calculation**: Statistical significance testing
-- 🧪 **Openings**: Test with standard EPD positions
-- 📉 **SPRTest**: Early termination when significance reached
-
-## 🎮 Board Representation
-
-The engine uses a **10x12 mailbox board** (120 squares) for fast off-board detection:
+El motor usa un **tablero mailbox de 10x12** (120 casillas) para detectar rápido cuando una pieza sale del tablero:
 
 ```
-FFFFFFFFFFFFFFFFFFFF  ← Border (0xFF)
-FFFFFFFFFFFFFFFFFFFF  ← Border
-FF0402030506030204FF  ← Back rank
-FF0101010101010101FF  ← Pawns
-FF0000000000000000FF  ← Empty
-FF0000000000000000FF  ← Empty
-FF0000000000000000FF  ← Empty
-FF0000000000000000FF  ← Empty
-FF8181818181818181FF  ← Pawns (black)
-FF8482838586838284FF  ← Back rank (black)
-FFFFFFFFFFFFFFFFFFFF  ← Border
-FFFFFFFFFFFFFFFFFFFF  ← Border
+FFFFFFFFFFFFFFFFFFFF  ← Borde (0xFF)
+FFFFFFFFFFFFFFFFFFFF  ← Borde
+FF0402030506030204FF  ← Primera fila
+FF0101010101010101FF  ← Peones
+FF0000000000000000FF  ← Vacío
+FF0000000000000000FF  ← Vacío
+FF0000000000000000FF  ← Vacío
+FF0000000000000000FF  ← Vacío
+FF8181818181818181FF  ← Peones (negros)
+FF8482838586838284FF  ← Primera fila (negros)
+FFFFFFFFFFFFFFFFFFFF  ← Borde
+FFFFFFFFFFFFFFFFFFFF  ← Borde
 ```
 
-### Piece Encoding
+### Codificación de piezas
 
-| Bits | Meaning |
-|------|---------|
-| `0-2` | Piece type (0=empty, 1=pawn, 2=knight, 3=bishop, 4=rook, 5=queen, 6=king) |
-| `3` | Has moved flag |
-| `4` | Castle rights (kings) |
-| `7` | Color (0=white, 1=black) |
-
-## 📁 Project Structure
-
-| Path | Description |
+| Bits | Significado |
 |------|-------------|
-| [src/](src/) | Rust engine source |
-| [web/](web/) | Go web server and static files |
-| [benchmark/](benchmark/) | Python benchmarking tools |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical deep dive |
-| [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) | How to benchmark |
+| `0-2` | Tipo (0=vacío, 1=peón, 2=caballo, 3=alfil, 4=torre, 5=dama, 6=rey) |
+| `3` | Flag de "ya se movió" |
+| `4` | Flag de enroque (reyes) |
+| `7` | Color (0=blanco, 1=negro) |
 
-## 🛠️ Development
+## Navegación
 
-### Prerequisites
+| Carpeta | Contenido |
+|---------|-----------|
+| [src/](src/) | Código fuente Rust |
+| [web/](web/) | Servidor web y archivos estáticos |
+| [benchmark/](benchmark/) | Herramientas Python de testing |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Documentación técnica detallada |
+
+## Desarrollo
+
+### Requisitos
 - Rust 1.70+ (`cargo`)
-- Go 1.21+ (for web UI)
-- Python 3.10+ (for benchmarks)
+- Go 1.21+ (para UI web)
+- Python 3.10+ (para benchmarks)
 
-### Build
+### Compilar
 ```bash
-# Build engine
+# Compilar motor
 cargo build --release
 
-# Build web server
+# Compilar servidor web
 cd web && go build
 
-# Run tests
+# Correr tests
 cargo test
 python3 -m pytest benchmark/
 ```
 
-### Development Mode
+### Modo desarrollo
 ```bash
-# Terminal 1: Run engine
+# Terminal 1: Motor
 cargo run
 
-# Terminal 2: Run web server
+# Terminal 2: Servidor web
 cd web && go run server.go
 
-# Browser: http://localhost:8080
+# Navegador: http://localhost:8080
 ```
 
-## 📊 Benchmarking Guide
+## Licencia
 
-See [docs/BENCHMARK_GUIDE.md](docs/BENCHMARK_GUIDE.md) for detailed instructions on comparing engine versions.
+MIT License
 
-Quick example:
-```bash
-# Compare current HEAD vs 5 commits ago
-cd benchmark
-python3 gitbench.py --vs-commit HEAD~5 --games 100
-```
+## Créditos
 
-## 📝 License
-
-MIT License - see LICENSE file for details.
-
-## 🙏 Credits
-
-- Bitboard techniques inspired by [Chess Programming Wiki](https://www.chessprogramming.org/)
-- WebSocket implementation using [Gorilla](https://github.com/gorilla/websocket)
-- UI styled with [TailwindCSS](https://tailwindcss.com)
-
----
-
-**Status**: Active development - PRs welcome! 🎉
+- Técnicas de bitboard inspiradas en [Chess Programming Wiki](https://www.chessprogramming.org/)
+- WebSocket usando [Gorilla](https://github.com/gorilla/websocket)
+- UI con [TailwindCSS](https://tailwindcss.com)

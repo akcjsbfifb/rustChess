@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  rust-chess:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rust-chess
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - RUST_ENGINE_PATH=/app/target/release/rust_chess
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    # Descomentar si necesitás persistencia en el futuro
+    # volumes:
+    #   - ./data:/app/data

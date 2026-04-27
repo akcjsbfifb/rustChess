@@ -57,14 +57,20 @@ type EngineProcess struct {
 // NewEngineProcess inicia el proceso del engine Rust
 func NewEngineProcess() (*EngineProcess, error) {
 	// Buscar el binario del engine
-	enginePath := "./target/release/rust_chess"
+	// 1. Primero intentar la variable de entorno (Docker/Producción)
+	// 2. Luego rutas relativas para desarrollo local
+	enginePath := os.Getenv("RUST_ENGINE_PATH")
+	
+	if enginePath == "" {
+		enginePath = "./target/release/rust_chess"
+	}
 
 	// Intentar rutas alternativas si no existe
 	if _, err := os.Stat(enginePath); os.IsNotExist(err) {
 		// Intentar desde el directorio padre
 		enginePath = "../target/release/rust_chess"
 		if _, err := os.Stat(enginePath); os.IsNotExist(err) {
-			return nil, fmt.Errorf("engine binary not found")
+			return nil, fmt.Errorf("engine binary not found at any location")
 		}
 	}
 
@@ -206,6 +212,12 @@ func main() {
 	// Configurar logging
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 
+	// Obtener puerto desde variable de entorno o usar default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
 	// Obtener directorio actual
 	ex, err := os.Executable()
 	if err != nil {
@@ -228,10 +240,10 @@ func main() {
 	// Endpoint REST para commits (simple HTTP GET)
 	http.HandleFunc("/api/commits", handleGetCommits)
 
-	log.Println("Server starting on http://0.0.0.0:8080")
-	log.Println("Open http://<TAILSCALE_IP>:8080 in your browser")
+	addr := "0.0.0.0:" + port
+	log.Printf("Server starting on http://%s", addr)
 
-	if err := http.ListenAndServe("0.0.0.0:8080", nil); err != nil {
+	if err := http.ListenAndServe(addr, nil); err != nil {
 		log.Fatal("Server error:", err)
 	}
 }
