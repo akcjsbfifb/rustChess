@@ -7,9 +7,10 @@ services:
       dockerfile: Dockerfile
     container_name: rust-chess
     restart: unless-stopped
-    # Nota: Coolify con Traefik maneja el enrutamiento, no expongamos puertos directamente
-    # ports:
-    #   - "8080:8080"
+    # Exponer puerto para que Coolify/Traefik detecte la aplicación
+    # NOTA: Solo expone el puerto del contenedor, no lo publica en el host
+    expose:
+      - "8080"
     environment:
       - PORT=8080
       - RUST_ENGINE_PATH=/app/target/release/rust_chess
