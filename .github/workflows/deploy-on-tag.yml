@@ -1,14 +1,33 @@
-name: Deploy to Coolify on Tag
+name: 🚀 Deploy to Production
 
 on:
   push:
     tags:
-      - 'v*'  # Se ejecuta solo en tags que empiecen con "v" (ej: v1.0, v2.0)
+      - 'v*'  # v1.0, v2.0, v1.2.3, etc.
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Coolify Deploy
+      - name: 📋 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🎯 Deploy to Coolify
+        env:
+          WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
         run: |
-          curl -X GET "${{ secrets.COOLIFY_WEBHOOK_URL }}"
+          echo "🚀 Deploying version: ${{ github.ref_name }}"
+          echo "🔗 Triggering Coolify deploy..."
+          
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "❌ Error: COOLIFY_WEBHOOK_URL is not set!"
+            echo "Please add it in Settings → Secrets → Actions"
+            exit 1
+          fi
+          
+          response=$(curl -s -X GET "$WEBHOOK_URL")
+          echo "✅ Deploy triggered successfully!"
+          echo "📤 Response: $response"
+          echo ""
+          echo "⏳ Your app will be live at: https://chess.moloeznik.me"
+          echo "   (This may take 2-3 minutes to build and deploy)"
