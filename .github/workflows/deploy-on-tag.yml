@@ -15,6 +15,7 @@ jobs:
       - name: 🎯 Deploy to Coolify
         env:
           WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
         run: |
           echo "🚀 Deploying version: ${{ github.ref_name }}"
           echo "🔗 Triggering Coolify deploy..."
@@ -25,7 +26,16 @@ jobs:
             exit 1
           fi
           
-          response=$(curl -s -X GET "$WEBHOOK_URL")
+          if [ -z "$API_TOKEN" ]; then
+            echo "❌ Error: COOLIFY_API_TOKEN is not set!"
+            echo "Please add it in Settings → Secrets → Actions"
+            echo "Generate the token in Coolify: Settings → API Tokens"
+            exit 1
+          fi
+          
+          response=$(curl -s -X GET "$WEBHOOK_URL" \
+            -H "Authorization: Bearer $API_TOKEN")
+          
           echo "✅ Deploy triggered successfully!"
           echo "📤 Response: $response"
           echo ""
