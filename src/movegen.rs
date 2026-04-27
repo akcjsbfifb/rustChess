@@ -131,27 +131,27 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
 
             // En passant posible
             // Captura al paso
-            if (A5..=H5).contains(&from)
-                && let Some(index) = board.undo_info.last().unwrap().en_passant_square
-            {
-                if index == from - 1 {
-                    moves.push(Move::new(
-                        from,
-                        from + 9,
-                        PieceType::Pawn,
-                        PieceType::Pawn,
-                        PieceType::None,
-                        Move::FLAG_EN_PASSANT,
-                    ));
-                } else if index == from + 1 {
-                    moves.push(Move::new(
-                        from,
-                        from + 11,
-                        PieceType::Pawn,
-                        PieceType::Pawn,
-                        PieceType::None,
-                        Move::FLAG_EN_PASSANT,
-                    ));
+            if (A5..=H5).contains(&from) {
+                if let Some(index) = board.undo_info.last().unwrap().en_passant_square {
+                    if index == from - 1 {
+                        moves.push(Move::new(
+                            from,
+                            from + 9,
+                            PieceType::Pawn,
+                            PieceType::Pawn,
+                            PieceType::None,
+                            Move::FLAG_EN_PASSANT,
+                        ));
+                    } else if index == from + 1 {
+                        moves.push(Move::new(
+                            from,
+                            from + 11,
+                            PieceType::Pawn,
+                            PieceType::Pawn,
+                            PieceType::None,
+                            Move::FLAG_EN_PASSANT,
+                        ));
+                    }
                 }
             }
         }
@@ -204,31 +204,31 @@ fn generate_pawn_moves(board: &Board, from: usize, side: Color, moves: &mut Vec<
                     moves.push(Move::new(from, from - 11, PieceType::Pawn, captured, PieceType::None, Move::FLAG_NONE));
                 }
             }
-            if (A4..=H4).contains(&from)
-                && let Some(index) = board.undo_info.last().unwrap().en_passant_square
-            {
-                if index == from + 1 {
-                    // En passant posible
-                    // Captura al paso
-                    moves.push(Move::new(
-                        from,
-                        from - 9,
-                        PieceType::Pawn,
-                        PieceType::Pawn,
-                        PieceType::None,
-                        Move::FLAG_EN_PASSANT,
-                    ));
-                } else if index == from - 1 {
-                    // En passant posible
-                    // Captura al paso
-                    moves.push(Move::new(
-                        from,
-                        from - 11,
-                        PieceType::Pawn,
-                        PieceType::Pawn,
-                        PieceType::None,
-                        Move::FLAG_EN_PASSANT,
-                    ));
+            if (A4..=H4).contains(&from) {
+                if let Some(index) = board.undo_info.last().unwrap().en_passant_square {
+                    if index == from + 1 {
+                        // En passant posible
+                        // Captura al paso
+                        moves.push(Move::new(
+                            from,
+                            from - 9,
+                            PieceType::Pawn,
+                            PieceType::Pawn,
+                            PieceType::None,
+                            Move::FLAG_EN_PASSANT,
+                        ));
+                    } else if index == from - 1 {
+                        // En passant posible
+                        // Captura al paso
+                        moves.push(Move::new(
+                            from,
+                            from - 11,
+                            PieceType::Pawn,
+                            PieceType::Pawn,
+                            PieceType::None,
+                            Move::FLAG_EN_PASSANT,
+                        ));
+                    }
                 }
             }
         }
