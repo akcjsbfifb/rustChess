@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile para rust_chess
 # Etapa 1: Compilar el motor Rust
-FROM rust:1.82-bookworm AS rust-builder
+FROM rust:1.85-bookworm AS rust-builder
 
 WORKDIR /build
 
