@@ -39,9 +39,9 @@ FROM debian:bookworm-slim
 
 WORKDIR /app
 
-# Instalar solo lo necesario (git para la función de benchmark)
+# Instalar solo lo necesario (git para benchmark, wget para healthcheck)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git ca-certificates && \
+    apt-get install -y --no-install-recommends git ca-certificates wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Crear directorio para el motor
