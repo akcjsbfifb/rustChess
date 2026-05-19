@@ -1,7 +1,7 @@
 # rustChess
 
 Motor de ajedrez escrito en Rust con interfaz web y herramientas de testing.
-
+Demo en chess.moloeznik.me
 ## Cómo empezar
 
 ### Jugar en el navegador
